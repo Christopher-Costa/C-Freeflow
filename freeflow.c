@@ -11,8 +11,13 @@
 #include <arpa/inet.h>
 #include "netflow.h"
 
+#define PROCESSES 25
 #define BUFLEN 65536 //Max length of buffer
 #define PORT 2055    //The port on which to listen for incoming data
+
+char hec_server[] = "10.10.10.10";
+int  hec_port = 8088;
+char hec_token[] = "2365442b-8451-4d96-9e37-46a9d5f2f9f1";
 
 void die(char *s)
 {
@@ -23,9 +28,6 @@ void die(char *s)
 int parse_packet(char* packet, int packet_len, char** payload) {
     char exporter[] = "127.0.0.1";
     char sourcetype[] = "netflow:csv";
-    char hec_server[] = "55.55.55.55";
-    char hec_port[] = "7777";
-    char hec_token[] = "XXX-XXX-XXX";
 
     // Make sure the size of the packet is sane for netflow.
     if ( (packet_len - 24) % 48 > 0 ){
@@ -108,7 +110,7 @@ int parse_packet(char* packet, int packet_len, char** payload) {
         strcat(splunk_payload, record);
     }
     
-    char post_message[200 + strlen(hec_server) + strlen(hec_port) + strlen(hec_token)];
+    char post_message[200 + strlen(hec_server) + 5 + strlen(hec_token)];
     sprintf(post_message, 
             "POST /services/collector HTTP/1.1\r\nHost: %s:%s\r\nUser-Agent: freeflow\r\nConnection: keep-alive\r\nAuthorization: Splunk %s\r\nContent-Length: %d\r\n\r\n", 
             hec_server, hec_port, hec_token, (int)strlen(splunk_payload));
@@ -118,7 +120,37 @@ int parse_packet(char* packet, int packet_len, char** payload) {
     return 0;
 }
 
-int main(void) {
+int splunk_worker() {
+
+    struct sockaddr_in addr;
+    struct hostent *host;
+    int sock;
+
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        printf("Error opening socket\n");
+        return -1;
+    }
+
+    addr.sin_family = AF_INET;
+
+    host = gethostbyname(hec_server);
+    if(host == NULL) {
+        printf("%s unknown host.\n", hec_server);
+        return -1;
+    }
+
+    bcopy(host->h_addr, &addr.sin_addr, host->h_length);
+    addr.sin_port = htons(hec_port);
+    connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
+
+    printf("Successfully bound to splunk\n");
+
+    while(1){
+        sleep(1);
+    }
+}
+
+int bind_socket(void) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
     
@@ -143,33 +175,40 @@ int main(void) {
     }
     
     //keep listening for data
+    printf("Socket Open\n");
     while(1)
     {
-        // printf("Waiting for data...");
-        // fflush(stdout);
-        
         int bytes_recv;
-        //try to receive some data, this is a blocking call
         bytes_recv = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&si_other, &slen);
-        
-        //struct netflow_header *h = (struct netflow_header*)buf;
-        //printf("count: %d\n", ntohs(h->count));
-
-        ////print details of the client/peer and the data received
-        //printf("Received packet from %s:%d\n", inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port));
-        //printf("Length: %d\n" , bytes_recv);
 
         char *payload;
         char results = parse_packet(buf, bytes_recv, &payload);        
         printf("%s\n", payload);
-
-        //now reply the client with the same data
-        //if (sendto(s, buf, recv_len, 0, (struct sockaddr*) &si_other, slen) == -1)
-        //{
-        //    die("sendto()");
-        //}
     }
 
     close(s);
     return 0;
+}
+
+int main() {
+
+    pid_t pids[PROCESSES];
+    int i;
+
+
+    for (i = 0; i < PROCESSES; ++i) {
+       if ((pids[i] = fork()) == 0 ) {
+            printf("%d: CHILD\n", i);
+            splunk_worker();
+        }
+       else {
+            printf("%d: PARENT\n", i);
+        }
+    }
+
+    for (i = 0; i < PROCESSES; ++i) {
+        printf("%d\n", pids[i]);
+    }
+
+    bind_socket();
 }
