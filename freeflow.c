@@ -23,7 +23,9 @@ char hec_token[] = "2365442b-8451-4d96-9e37-46a9d5f2f9f1";
 
 struct msgbuf {
     long mtype;  /* must be positive */
-    char message[BUFLEN];
+    char packet[BUFLEN];
+    int packet_len;
+    struct in_addr sender;
 };
 
 void die(char *s)
@@ -204,7 +206,9 @@ int bind_socket(void) {
 
         char *payload;
         char results = parse_packet(buf, bytes_recv, &payload, si_other.sin_addr);        
-        strcpy(message.message, payload);
+        message.packet_len = bytes_recv;
+        message.sender = si_other.sin_addr;
+        strncpy(message.packet, buf, bytes_recv);
         msgsnd(msqid, &message, strlen(payload) + 20, 0); 
     }
 
