@@ -8,8 +8,9 @@
 #include <netinet/in.h>
 #include <sys/uio.h>
 #include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
 #include <arpa/inet.h>
-#include <mqueue.h>
 #include "netflow.h"
 
 #define PROCESSES 25
@@ -19,6 +20,11 @@
 char hec_server[] = "10.10.10.10";
 int  hec_port = 8088;
 char hec_token[] = "2365442b-8451-4d96-9e37-46a9d5f2f9f1";
+
+struct msgbuf {
+    long mtype;  /* must be positive */
+    char message[BUFLEN];
+};
 
 void die(char *s)
 {
@@ -123,7 +129,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
     return 0;
 }
 
-int splunk_worker() {
+int splunk_worker(int worker_num) {
 
     struct sockaddr_in addr;
     struct hostent *host;
@@ -148,8 +154,13 @@ int splunk_worker() {
 
     printf("Successfully bound to splunk\n");
 
+    key_t key = ftok("./key", 'b');
+    int msqid = msgget(key, 0666 | IPC_CREAT);
+
     while(1){
-        sleep(1);
+        struct msgbuf m;
+        msgrcv(msqid, &m, sizeof(struct msgbuf), 2, 0);
+        printf("%d\n", worker_num);
     }
 }
 
@@ -179,6 +190,13 @@ int bind_socket(void) {
     
     //keep listening for data
     printf("Socket Open\n");
+
+    key_t key = ftok("./key", 'b');
+    int msqid = msgget(key, 0666 | IPC_CREAT);
+
+    struct msgbuf message;
+    message.mtype = 2;
+
     while(1)
     {
         int bytes_recv;
@@ -186,7 +204,8 @@ int bind_socket(void) {
 
         char *payload;
         char results = parse_packet(buf, bytes_recv, &payload, si_other.sin_addr);        
-        printf("%s\n", payload);
+        strcpy(message.message, payload);
+        msgsnd(msqid, &message, strlen(payload) + 20, 0); 
     }
 
     close(s);
@@ -202,7 +221,7 @@ int main() {
     for (i = 0; i < PROCESSES; ++i) {
        if ((pids[i] = fork()) == 0 ) {
             printf("%d: CHILD\n", i);
-            splunk_worker();
+            splunk_worker(i);
         }
        else {
             printf("%d: PARENT\n", i);
