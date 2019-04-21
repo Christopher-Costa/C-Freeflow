@@ -9,6 +9,7 @@
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
+#include <mqueue.h>
 #include "netflow.h"
 
 #define PROCESSES 25
@@ -25,8 +26,7 @@ void die(char *s)
     exit(1);
 }
 
-int parse_packet(char* packet, int packet_len, char** payload) {
-    char exporter[] = "127.0.0.1";
+int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e) {
     char sourcetype[] = "netflow:csv";
 
     // Make sure the size of the packet is sane for netflow.
@@ -69,6 +69,9 @@ int parse_packet(char* packet, int packet_len, char** payload) {
         struct in_addr s = {r->srcaddr};
         struct in_addr d = {r->dstaddr};
         struct in_addr n = {r->nexthop};
+
+        char exporter[16];
+        strcpy(exporter, inet_ntoa(e));
 
         char srcaddr[16];
         strcpy(srcaddr, inet_ntoa(s));
@@ -182,7 +185,7 @@ int bind_socket(void) {
         bytes_recv = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&si_other, &slen);
 
         char *payload;
-        char results = parse_packet(buf, bytes_recv, &payload);        
+        char results = parse_packet(buf, bytes_recv, &payload, si_other.sin_addr);        
         printf("%s\n", payload);
     }
 
