@@ -1,1 +1,1 @@
-gcc freeflow.c -o freeflow.out
+gcc freeflow.c -o freeflow.out -lrt

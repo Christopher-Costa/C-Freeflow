@@ -112,7 +112,7 @@ int parse_packet(char* packet, int packet_len, char** payload) {
     
     char post_message[200 + strlen(hec_server) + 5 + strlen(hec_token)];
     sprintf(post_message, 
-            "POST /services/collector HTTP/1.1\r\nHost: %s:%s\r\nUser-Agent: freeflow\r\nConnection: keep-alive\r\nAuthorization: Splunk %s\r\nContent-Length: %d\r\n\r\n", 
+            "POST /services/collector HTTP/1.1\r\nHost: %s:%d\r\nUser-Agent: freeflow\r\nConnection: keep-alive\r\nAuthorization: Splunk %s\r\nContent-Length: %d\r\n\r\n", 
             hec_server, hec_port, hec_token, (int)strlen(splunk_payload));
     strcat(post_message, splunk_payload);
 
