@@ -13,8 +13,8 @@
 #include <arpa/inet.h>
 #include "netflow.h"
 
-#define PROCESSES 25
-#define BUFLEN 65536 //Max length of buffer
+#define PROCESSES 10
+#define BUFLEN 4096 //Max length of buffer
 #define PORT 2055    //The port on which to listen for incoming data
 
 char hec_server[] = "10.10.10.10";
@@ -47,15 +47,15 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
-        printf("Invalid version\n");
-        return 1;
+        printf("Invalid version: %d\n", ntohs(h->version));
+        //return 1;
     }
 
     short num_records = ntohs(h->count);
 
     // Make sure the number of records is sane
     if (num_records != (packet_len - 24) / 48){
-        printf("Invalid number of records\n");
+        printf("Invalid number of records: %d\n", num_records);
         return 1;
     }
 
@@ -132,7 +132,6 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
 }
 
 int splunk_worker(int worker_num) {
-
     struct sockaddr_in addr;
     struct hostent *host;
     int sock;
@@ -160,9 +159,13 @@ int splunk_worker(int worker_num) {
     int msqid = msgget(key, 0666 | IPC_CREAT);
 
     while(1){
+        char *payload;
         struct msgbuf m;
+
         msgrcv(msqid, &m, sizeof(struct msgbuf), 2, 0);
-        printf("%d\n", worker_num);
+        char results = parse_packet(m.packet, m.packet_len, &payload, m.sender);        
+        //#printf("Worker #%d\n", worker_num);
+        printf("%s\n", payload);
     }
 }
 
@@ -204,12 +207,10 @@ int bind_socket(void) {
         int bytes_recv;
         bytes_recv = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&si_other, &slen);
 
-        char *payload;
-        char results = parse_packet(buf, bytes_recv, &payload, si_other.sin_addr);        
         message.packet_len = bytes_recv;
         message.sender = si_other.sin_addr;
-        strncpy(message.packet, buf, bytes_recv);
-        msgsnd(msqid, &message, strlen(payload) + 20, 0); 
+        memcpy(message.packet, buf, bytes_recv);
+        msgsnd(msqid, &message, sizeof(struct msgbuf), 0); 
     }
 
     close(s);
