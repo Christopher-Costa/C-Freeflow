@@ -151,8 +151,6 @@ int splunk_worker(int worker_num) {
     addr.sin_port = htons(hec_port);
     connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
 
-    printf("Successfully bound to splunk\n");
-
     key_t key = ftok("./key", 'b');
     int msqid = msgget(key, 0666 | IPC_CREAT);
 
@@ -174,7 +172,7 @@ int splunk_worker(int worker_num) {
     free(recv_buffer);
 }
 
-int bind_socket(void) {
+int receive_packets(void) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
     
@@ -197,9 +195,6 @@ int bind_socket(void) {
     if (bind(s, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
         die("bind");
     }
-    
-    //keep listening for data
-    printf("Socket Open\n");
 
     key_t key = ftok("./key", 'b');
     int msqid = msgget(key, 0666 | IPC_CREAT);
@@ -207,6 +202,7 @@ int bind_socket(void) {
     struct msgbuf message;
     message.mtype = 2;
 
+    //keep listening for data
     while(1)
     {
         int bytes_recv;
@@ -230,17 +226,10 @@ int main() {
 
     for (i = 0; i < PROCESSES; ++i) {
        if ((pids[i] = fork()) == 0 ) {
-            printf("%d: CHILD\n", i);
             splunk_worker(i);
-        }
-       else {
-            printf("%d: PARENT\n", i);
+            exit(0);
         }
     }
 
-    for (i = 0; i < PROCESSES; ++i) {
-        printf("%d\n", pids[i]);
-    }
-
-    bind_socket();
+    receive_packets();
 }
