@@ -14,8 +14,8 @@
 #include "netflow.h"
 
 #define PROCESSES 3
-#define BUFLEN 4 * 1024 //Max length of buffer
-#define PORT 2055    //The port on which to listen for incoming data
+#define BUFLEN 4 * 1024 // Max length of buffer
+#define PORT 2055       // The port on which to listen for incoming data
 
 char hec_server[] = "10.10.10.10";
 int  hec_port = 8088;
@@ -48,7 +48,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
         printf("Invalid version: %d\n", ntohs(h->version));
-        //return 1;
+        return 1;
     }
 
     short num_records = ntohs(h->count);
@@ -121,13 +121,11 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
         strcat(splunk_payload, record);
     }
     
-    char post_message[200 + strlen(hec_server) + 5 + strlen(hec_token)];
-    sprintf(post_message, 
+    sprintf(*payload, 
             "POST /services/collector HTTP/1.1\r\nHost: %s:%d\r\nUser-Agent: freeflow\r\nConnection: keep-alive\r\nAuthorization: Splunk %s\r\nContent-Length: %d\r\n\r\n", 
             hec_server, hec_port, hec_token, (int)strlen(splunk_payload));
-    strcat(post_message, splunk_payload);
+    strcat(*payload, splunk_payload);
 
-    strcpy(*payload, post_message);
     return 0;
 }
 
@@ -166,8 +164,6 @@ int splunk_worker(int worker_num) {
         
         msgrcv(msqid, &m, sizeof(struct msgbuf), 2, 0);
         char results = parse_packet(m.packet, m.packet_len, &payload, m.sender);        
-        //printf("%s\n", payload);
-        //printf("%d\n", strlen(payload));
         int bytes_sent = write(sock, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
             printf("Incomplete delivery\n");
