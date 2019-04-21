@@ -13,8 +13,8 @@
 #include <arpa/inet.h>
 #include "netflow.h"
 
-#define PROCESSES 10
-#define BUFLEN 4096 //Max length of buffer
+#define PROCESSES 3
+#define BUFLEN 4 * 1024 //Max length of buffer
 #define PORT 2055    //The port on which to listen for incoming data
 
 char hec_server[] = "10.10.10.10";
@@ -127,7 +127,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
             hec_server, hec_port, hec_token, (int)strlen(splunk_payload));
     strcat(post_message, splunk_payload);
 
-    *payload = post_message;
+    strcpy(*payload, post_message);
     return 0;
 }
 
@@ -158,15 +158,24 @@ int splunk_worker(int worker_num) {
     key_t key = ftok("./key", 'b');
     int msqid = msgget(key, 0666 | IPC_CREAT);
 
+    char *payload, *recv_buffer;
+    payload = malloc(64 * 1024);
+    recv_buffer = malloc(64 * 1024);
     while(1){
-        char *payload;
         struct msgbuf m;
-
+        
         msgrcv(msqid, &m, sizeof(struct msgbuf), 2, 0);
         char results = parse_packet(m.packet, m.packet_len, &payload, m.sender);        
-        //#printf("Worker #%d\n", worker_num);
-        printf("%s\n", payload);
+        //printf("%s\n", payload);
+        //printf("%d\n", strlen(payload));
+        int bytes_sent = write(sock, payload, strlen(payload));
+        if (bytes_sent < strlen(payload)) {
+            printf("Incomplete delivery\n");
+        }
+        read(sock, recv_buffer, 64 * 1024);
     }
+    free(payload);
+    free(recv_buffer);
 }
 
 int bind_socket(void) {
