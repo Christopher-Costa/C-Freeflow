@@ -17,6 +17,7 @@
 #define BUFLEN 4 * 1024 // Max length of buffer
 #define PORT 2055       // The port on which to listen for incoming data
 
+char* config_file;
 char hec_server[] = "10.10.10.10";
 int  hec_port = 8088;
 char hec_token[] = "2365442b-8451-4d96-9e37-46a9d5f2f9f1";
@@ -218,7 +219,79 @@ int receive_packets(void) {
     return 0;
 }
 
-int main() {
+void read_configuration() {
+    char line[1024];
+    FILE *config;
+
+    if ((config = fopen(config_file, "r")) == NULL) {
+        printf("Couldn't open config file.\n");
+        exit(0);
+    }
+
+    char key[128];
+    char value[128];
+
+    while (fgets(line, sizeof line, config) != NULL ){
+        int result = sscanf(line,"%[^= \t\r\n] = %[^= \t\r\n]", key, value);
+        if (result != 2) {
+            result = sscanf(line,"%[^= \t\r\n]=%[^= \t\r\n]", key, value);
+        } 
+
+            
+
+        if (result == 2) {
+            if (key[0] == '#') {
+                continue;
+            }
+            printf("%s, %s\n", key, value);
+        }
+    }
+
+    fclose(config);
+}
+
+int parse_args(int argc, char** argv) {
+    int option;
+    int index;
+    opterr = 0;
+
+    while ((option = getopt (argc, argv, "c:")) != -1)
+        switch (option) {
+            case 'c':
+                config_file = optarg;
+                break;
+            case '?':
+                if (optopt == 'c') {
+                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+                }
+                else if (isprint (optopt)) {
+                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+                }
+                else {
+                    fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+                }
+                exit(0);
+            default:
+                abort ();
+        }
+
+    for (index = optind; index < argc; index++) {
+        printf("Non-option argument %s\n", argv[index]);
+        exit(0);
+    }
+
+    if (!config_file) {
+        printf("No configuration file provided.\n");
+        exit(0);
+    }
+
+    return 0;
+}
+
+int main(int argc, char** argv) {
+
+    parse_args(argc, argv);
+    read_configuration();
 
     pid_t pids[PROCESSES];
     int i;
