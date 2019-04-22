@@ -237,8 +237,6 @@ void read_configuration() {
             result = sscanf(line,"%[^= \t\r\n]=%[^= \t\r\n]", key, value);
         } 
 
-            
-
         if (result == 2) {
             if (key[0] == '#') {
                 continue;
