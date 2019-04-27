@@ -11,16 +11,13 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <arpa/inet.h>
+#include "freeflow.h"
 #include "netflow.h"
 
-#define PROCESSES 3
 #define BUFLEN 4 * 1024 // Max length of buffer
-#define PORT 2055       // The port on which to listen for incoming data
 
 char* config_file;
-char hec_server[] = "10.10.10.10";
-int  hec_port = 8088;
-char hec_token[] = "2365442b-8451-4d96-9e37-46a9d5f2f9f1";
+freeflow_config config;
 
 struct msgbuf {
     long mtype;  /* must be positive */
@@ -36,8 +33,6 @@ void die(char *s)
 }
 
 int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e) {
-    char sourcetype[] = "netflow:csv";
-
     // Make sure the size of the packet is sane for netflow.
     if ( (packet_len - 24) % 48 > 0 ){
         printf("Invalid length\n");
@@ -66,7 +61,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
 
     // The maximum size of a record minus the variable sourcetype is 233 bytes.
     // 250 bytes provides a reasonable safety buffer.
-    int record_size = (250 + strlen(sourcetype));
+    int record_size = (250 + strlen(config.sourcetype));
 
     char splunk_payload[record_size * num_records];
     splunk_payload[0] = '\0';
@@ -113,7 +108,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
             exporter, srcaddr, dstaddr, nexthop,
             input, output, packets, bytes, duration,
             sport, dport, flags, prot, tos, srcas, dstas,
-            srcmask, dstmask, sourcetype,
+            srcmask, dstmask, config.sourcetype,
             (  (double)unix_secs 
              + (double)unix_nsecs / 1000000000 
              - (double)sys_uptime/1000 
@@ -124,7 +119,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
     
     sprintf(*payload, 
             "POST /services/collector HTTP/1.1\r\nHost: %s:%d\r\nUser-Agent: freeflow\r\nConnection: keep-alive\r\nAuthorization: Splunk %s\r\nContent-Length: %d\r\n\r\n", 
-            hec_server, hec_port, hec_token, (int)strlen(splunk_payload));
+            config.hec_server, config.hec_port, config.hec_token, (int)strlen(splunk_payload));
     strcat(*payload, splunk_payload);
 
     return 0;
@@ -142,14 +137,14 @@ int splunk_worker(int worker_num) {
 
     addr.sin_family = AF_INET;
 
-    host = gethostbyname(hec_server);
+    host = gethostbyname(config.hec_server);
     if(host == NULL) {
-        printf("%s unknown host.\n", hec_server);
+        printf("%s unknown host.\n", config.hec_server);
         return -1;
     }
 
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
-    addr.sin_port = htons(hec_port);
+    addr.sin_port = htons(config.hec_port);
     connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
 
     key_t key = ftok("./key", 'b');
@@ -189,7 +184,7 @@ int receive_packets(void) {
     memset((char *) &si_me, 0, sizeof(si_me));
     
     si_me.sin_family = AF_INET;
-    si_me.sin_port = htons(PORT);
+    si_me.sin_port = htons(config.bind_port);
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
     
     //bind socket to port
@@ -221,9 +216,9 @@ int receive_packets(void) {
 
 void read_configuration() {
     char line[1024];
-    FILE *config;
+    FILE *c;
 
-    if ((config = fopen(config_file, "r")) == NULL) {
+    if ((c = fopen(config_file, "r")) == NULL) {
         printf("Couldn't open config file.\n");
         exit(0);
     }
@@ -231,7 +226,7 @@ void read_configuration() {
     char key[128];
     char value[128];
 
-    while (fgets(line, sizeof line, config) != NULL ){
+    while (fgets(line, sizeof line, c) != NULL ){
         int result = sscanf(line,"%[^= \t\r\n] = %[^= \t\r\n]", key, value);
         if (result != 2) {
             result = sscanf(line,"%[^= \t\r\n]=%[^= \t\r\n]", key, value);
@@ -241,11 +236,52 @@ void read_configuration() {
             if (key[0] == '#') {
                 continue;
             }
-            printf("%s, %s\n", key, value);
+
+            if (!strcmp(key, "bind_addr")) {
+                config.bind_addr = malloc(strlen(value) + 1);
+                strcpy(config.bind_addr, value);
+                printf("%s\n", config.bind_addr);
+            }
+            else if (!strcmp(key, "bind_port")) {
+                config.bind_port = atoi(value);
+                printf("%d\n", config.bind_port);
+            }
+            else if (!strcmp(key, "threads")) {
+                config.threads = atoi(value);
+                printf("%d\n", config.threads);
+            }
+            else if (!strcmp(key, "queue_size")) {
+                config.queue_size = atoi(value);
+                printf("%d\n", config.queue_size);
+            }
+            else if (!strcmp(key, "sourcetype")) {
+                config.sourcetype = malloc(strlen(value) + 1);
+                strcpy(config.sourcetype, value);
+                printf("%s\n", config.sourcetype);
+            }
+            else if (!strcmp(key, "hec_token")) {
+                config.hec_token = malloc(strlen(value) + 1);
+                strcpy(config.hec_token, value);
+                printf("%s\n", config.hec_token);
+            }
+            else if (!strcmp(key, "hec_server")) {
+                config.hec_server = malloc(strlen(value) + 1);
+                strcpy(config.hec_server, value);
+                printf("%s\n", config.hec_server);
+            }
+            else if (!strcmp(key, "hec_port")) {
+                config.hec_port = atoi(value);
+                printf("%d\n", config.hec_port);
+            }
+            else if (!strcmp(key, "log_file")) {
+                config.log_file = malloc(strlen(value) + 1);
+                strcpy(config.log_file, value);
+                printf("%s\n", config.log_file);
+            }
         }
     }
 
-    fclose(config);
+    fclose(c);
 }
 
 int parse_args(int argc, char** argv) {
@@ -291,11 +327,11 @@ int main(int argc, char** argv) {
     parse_args(argc, argv);
     read_configuration();
 
-    pid_t pids[PROCESSES];
+    pid_t pids[config.threads];
     int i;
 
 
-    for (i = 0; i < PROCESSES; ++i) {
+    for (i = 0; i < config.threads; ++i) {
        if ((pids[i] = fork()) == 0 ) {
             splunk_worker(i);
             exit(0);
