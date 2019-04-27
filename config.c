@@ -1,7 +1,52 @@
 #include <stdio.h>    /* Provides: printf */
 #include <string.h>   /* Provides: strcpy */
 #include <stdlib.h>   /* Provides: malloc */
+#include <unistd.h>   /* Provides: getopt */
 #include "config.h"
+
+int parse_command_arguments(int argc, char** argv, char **config_file) {
+    int option;
+    int index;
+    opterr = 0;
+
+    while ((option = getopt (argc, argv, "c:")) != -1)
+        switch (option) {
+            case 'c':
+                *config_file = optarg;
+                break;
+            case '?':
+                if (optopt == 'c') {
+                    fprintf (stderr,
+                             "Option -%c requires an argument.\n",
+                             optopt);
+                }
+                else if (isprint (optopt)) {
+                    fprintf (stderr,
+                             "Unknown option `-%c'.\n",
+                             optopt);
+                }
+                else {
+                    fprintf (stderr,
+                             "Unknown option character `\\x%x'.\n",
+                             optopt);
+                }
+                exit(0);
+            default:
+                abort ();
+        }
+
+    for (index = optind; index < argc; index++) {
+        printf("Non-option argument %s\n", argv[index]);
+        exit(0);
+    }
+
+    if (!config_file) {
+        printf("No configuration file provided.\n");
+        exit(0);
+    }
+
+    return 0;
+}
 
 void read_configuration(char* config_file, freeflow_config* config_obj) {
     char line[1024];

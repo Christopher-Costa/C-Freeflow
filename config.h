@@ -9,3 +9,7 @@ typedef struct freeflow_config {
     int hec_port;
     char *log_file;
 } freeflow_config;
+
+int parse_command_arguments(int argc, char** argv, char **config_file);
+void read_configuration(char* config_file, freeflow_config* config_obj);
+
