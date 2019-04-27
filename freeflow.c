@@ -334,6 +334,15 @@ void start_logger() {
     }
 }
 
+/*
+ * Function: main
+ *
+ * Initialize the program by reading and processing the command line
+ * arguments and the program configuration file, fork additional 
+ * processes to handle logging and packet processing and transmission 
+ * to Splunk.  The main process will handle send and receive functions 
+ * for the Netflow UDP socket.
+ */
 int main(int argc, char** argv) {
 
     parse_args(argc, argv);
