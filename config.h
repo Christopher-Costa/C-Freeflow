@@ -1,5 +1,3 @@
-#define BUFLEN 4 * 1024 // Max length of buffer
-
 typedef struct freeflow_config {
     char* bind_addr;
     int bind_port;
@@ -11,10 +9,3 @@ typedef struct freeflow_config {
     int hec_port;
     char *log_file;
 } freeflow_config;
-
-typedef struct msgbuf {
-    long mtype;  /* must be positive */
-    char packet[BUFLEN];
-    int packet_len;
-    char sender[16];
-} msgbuf;

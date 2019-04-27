@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <stdio.h>       /* Provides: sprintf */
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -9,10 +9,11 @@
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
-#include <sys/msg.h>
+#include <sys/msg.h>  /* Provides: struct msqid_ds */
 #include <arpa/inet.h>
 #include "freeflow.h"
 #include "netflow.h"
+//#include "logger.h"
 
 char* config_file;
 freeflow_config config;
@@ -30,10 +31,10 @@ void configure_queue(int queue) {
     msgctl(queue, IPC_SET, &ds);
 }
 
-int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e) {
+int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
     // Make sure the size of the packet is sane for netflow.
     if ( (packet_len - 24) % 48 > 0 ){
-        printf("Invalid length\n");
+        logger("Invalid length");
         return 1;
     }
 
@@ -41,7 +42,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
-        printf("Invalid version: %d\n", ntohs(h->version));
+        logger("Invalid version: %d", ntohs(h->version));
         return 1;
     }
 
@@ -49,7 +50,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
 
     // Make sure the number of records is sane
     if (num_records != (packet_len - 24) / 48){
-        printf("Invalid number of records: %d\n", num_records);
+        logger("Invalid number of records: %d", num_records);
         return 1;
     }
 
@@ -71,9 +72,6 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
         struct in_addr s = {r->srcaddr};
         struct in_addr d = {r->dstaddr};
         struct in_addr n = {r->nexthop};
-
-        char exporter[16];
-        strcpy(exporter, inet_ntoa(e));
 
         char srcaddr[16];
         strcpy(srcaddr, inet_ntoa(s));
@@ -123,13 +121,13 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
     return 0;
 }
 
-int splunk_worker(int worker_num) {
+int splunk_worker(int worker_num, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
     int sock;
 
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        printf("Error opening socket\n");
+        logger("Error opening socket.", log_queue);
         return -1;
     }
 
@@ -137,13 +135,17 @@ int splunk_worker(int worker_num) {
 
     host = gethostbyname(config.hec_server);
     if(host == NULL) {
-        printf("%s unknown host.\n", config.hec_server);
+        logger("%s unknown host.", config.hec_server);
         return -1;
     }
 
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
     addr.sin_port = htons(config.hec_port);
     connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
+
+    char log_message[128];
+    sprintf(log_message, "Splunk worker #%d started.", worker_num);
+    logger(log_message, log_queue);
 
     key_t key = ftok(config_file, 'a');
     int msqid = msgget(key, 0666 | IPC_CREAT);
@@ -166,7 +168,7 @@ int splunk_worker(int worker_num) {
     free(recv_buffer);
 }
 
-int receive_packets(void) {
+int receive_packets(int log_queue) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
     
@@ -190,6 +192,8 @@ int receive_packets(void) {
         die("bind");
     }
 
+    logger("Socket bound and listening", log_queue);
+
     key_t key = ftok(config_file, 'a');
     int msqid = msgget(key, 0666 | IPC_CREAT);
 
@@ -203,74 +207,13 @@ int receive_packets(void) {
         bytes_recv = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&si_other, &slen);
 
         message.packet_len = bytes_recv;
-        message.sender = si_other.sin_addr;
+        strcpy(message.sender, inet_ntoa(si_other.sin_addr));
         memcpy(message.packet, buf, bytes_recv);
         msgsnd(msqid, &message, sizeof(msgbuf), 0); 
     }
 
     close(s);
     return 0;
-}
-
-void read_configuration() {
-    char line[1024];
-    FILE *c;
-
-    if ((c = fopen(config_file, "r")) == NULL) {
-        printf("Couldn't open config file.\n");
-        exit(0);
-    }
-
-    char key[128];
-    char value[128];
-
-    while (fgets(line, sizeof line, c) != NULL ){
-        int result = sscanf(line,"%[^= \t\r\n] = %[^= \t\r\n]", key, value);
-        if (result != 2) {
-            result = sscanf(line,"%[^= \t\r\n]=%[^= \t\r\n]", key, value);
-        } 
-
-        if (result == 2) {
-            if (key[0] == '#') {
-                continue;
-            }
-
-            if (!strcmp(key, "bind_addr")) {
-                config.bind_addr = malloc(strlen(value) + 1);
-                strcpy(config.bind_addr, value);
-            }
-            else if (!strcmp(key, "bind_port")) {
-                config.bind_port = atoi(value);
-            }
-            else if (!strcmp(key, "threads")) {
-                config.threads = atoi(value);
-            }
-            else if (!strcmp(key, "queue_size")) {
-                config.queue_size = atoi(value);
-            }
-            else if (!strcmp(key, "sourcetype")) {
-                config.sourcetype = malloc(strlen(value) + 1);
-                strcpy(config.sourcetype, value);
-            }
-            else if (!strcmp(key, "hec_token")) {
-                config.hec_token = malloc(strlen(value) + 1);
-                strcpy(config.hec_token, value);
-            }
-            else if (!strcmp(key, "hec_server")) {
-                config.hec_server = malloc(strlen(value) + 1);
-                strcpy(config.hec_server, value);
-            }
-            else if (!strcmp(key, "hec_port")) {
-                config.hec_port = atoi(value);
-            }
-            else if (!strcmp(key, "log_file")) {
-                config.log_file = malloc(strlen(value) + 1);
-                strcpy(config.log_file, value);
-            }
-        }
-    }
-
-    fclose(c);
 }
 
 int parse_args(int argc, char** argv) {
@@ -285,13 +228,19 @@ int parse_args(int argc, char** argv) {
                 break;
             case '?':
                 if (optopt == 'c') {
-                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+                    fprintf (stderr, 
+                             "Option -%c requires an argument.\n", 
+                             optopt);
                 }
                 else if (isprint (optopt)) {
-                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+                    fprintf (stderr, 
+                             "Unknown option `-%c'.\n", 
+                             optopt);
                 }
                 else {
-                    fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+                    fprintf (stderr, 
+                             "Unknown option character `\\x%x'.\n", 
+                             optopt);
                 }
                 exit(0);
             default:
@@ -311,57 +260,34 @@ int parse_args(int argc, char** argv) {
     return 0;
 }
 
-void logger(char* message) {
-    key_t key = ftok(config_file, 'b');
-    int log_queue = msgget(key, 0666 | IPC_CREAT);
-    
-    logbuf log_message;
-    log_message.mtype = 1;
-    strcpy(log_message.message, message);
-
-    msgsnd(log_queue, &log_message, sizeof(logbuf), 0);
-}
-
-void start_logger() {
-    key_t key = ftok(config_file, 'b');
-    int log_queue = msgget(key, 0666 | IPC_CREAT);
-    configure_queue(log_queue);
-
-    while(1) {
-        logbuf l;
-        msgrcv(log_queue, &l, sizeof(logbuf), 1, 0);
-        printf("Logger: %s\n", l.message);        
-    }
-}
-
 /*
  * Function: main
  *
- * Initialize the program by reading and processing the command line
- * arguments and the program configuration file, fork additional 
- * processes to handle logging and packet processing and transmission 
- * to Splunk.  The main process will handle send and receive functions 
- * for the Netflow UDP socket.
+ * Initialize the program by reading and processing the command line arguments 
+ * and the program configuration file, fork additional processes to handle 
+ * logging and packet processing and transmission to Splunk.  The main process 
+ * will handle send and receive functions for the Netflow UDP socket.
  */
 int main(int argc, char** argv) {
 
     parse_args(argc, argv);
-    read_configuration();
+    read_configuration(config_file, &config);
 
     pid_t pids[config.threads];
     int i;
+    int log_queue = create_queue(config_file, '1');
 
     if (fork() == 0) {
-        start_logger();
+        start_logger(config_file, config, log_queue);
         exit(0);
     }
 
     for (i = 0; i < config.threads; ++i) {
        if ((pids[i] = fork()) == 0 ) {
-            splunk_worker(i);
+            splunk_worker(i, log_queue);
             exit(0);
         }
     }
-
-    receive_packets();
+    
+    receive_packets(log_queue);
 }
