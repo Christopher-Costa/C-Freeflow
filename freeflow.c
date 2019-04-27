@@ -24,13 +24,6 @@ void die(char *s)
     exit(1);
 }
 
-void configure_queue(int queue) {
-    struct msqid_ds ds = {0};
-    msgctl(queue, IPC_STAT, &ds);
-    ds.msg_qbytes = config.queue_size;
-    msgctl(queue, IPC_SET, &ds);
-}
-
 int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
     // Make sure the size of the packet is sane for netflow.
     if ( (packet_len - 24) % 48 > 0 ){
