@@ -1,4 +1,4 @@
-struct netflow_header {
+typedef struct netflow_header {
     uint16_t version;
     uint16_t count;
     uint32_t sys_uptime;
@@ -8,9 +8,9 @@ struct netflow_header {
     uint8_t engine_type;
     uint8_t engine_id;
     uint16_t sampling;
-};
+} netflow_header;
 
-struct netflow_record {
+typedef struct netflow_record {
     uint32_t srcaddr;
     uint32_t dstaddr;
     uint32_t nexthop;
@@ -31,4 +31,4 @@ struct netflow_record {
     uint8_t  src_mask;
     uint8_t  dst_mask;
     uint16_t pad2;
-};
+} netflow_record;

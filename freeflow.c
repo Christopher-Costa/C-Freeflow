@@ -14,22 +14,20 @@
 #include "freeflow.h"
 #include "netflow.h"
 
-#define BUFLEN 4 * 1024 // Max length of buffer
-
 char* config_file;
 freeflow_config config;
-
-struct msgbuf {
-    long mtype;  /* must be positive */
-    char packet[BUFLEN];
-    int packet_len;
-    struct in_addr sender;
-};
 
 void die(char *s)
 {
     perror(s);
     exit(1);
+}
+
+void configure_queue(int queue) {
+    struct msqid_ds ds = {0};
+    msgctl(queue, IPC_STAT, &ds);
+    ds.msg_qbytes = config.queue_size;
+    msgctl(queue, IPC_SET, &ds);
 }
 
 int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e) {
@@ -39,7 +37,7 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
         return 1;
     }
 
-    struct netflow_header *h = (struct netflow_header*)packet;
+    netflow_header *h = (netflow_header*)packet;
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
@@ -67,9 +65,9 @@ int parse_packet(char* packet, int packet_len, char** payload, struct in_addr e)
     splunk_payload[0] = '\0';
 
     int record_count;
-    struct netflow_record *r;
+    netflow_record *r;
     for ( record_count = 0; record_count < num_records; record_count++){
-        r = (struct netflow_record*)((char*)h + 24 + 48 * record_count);
+        r = (netflow_record*)((char*)h + 24 + 48 * record_count);
         struct in_addr s = {r->srcaddr};
         struct in_addr d = {r->dstaddr};
         struct in_addr n = {r->nexthop};
@@ -147,16 +145,16 @@ int splunk_worker(int worker_num) {
     addr.sin_port = htons(config.hec_port);
     connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
 
-    key_t key = ftok("./key", 'b');
+    key_t key = ftok(config_file, 'a');
     int msqid = msgget(key, 0666 | IPC_CREAT);
 
     char *payload, *recv_buffer;
     payload = malloc(64 * 1024);
     recv_buffer = malloc(64 * 1024);
-    while(1){
-        struct msgbuf m;
+    while(1) {
+        msgbuf m;
         
-        msgrcv(msqid, &m, sizeof(struct msgbuf), 2, 0);
+        msgrcv(msqid, &m, sizeof(msgbuf), 2, 0);
         char results = parse_packet(m.packet, m.packet_len, &payload, m.sender);        
         int bytes_sent = write(sock, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
@@ -192,10 +190,10 @@ int receive_packets(void) {
         die("bind");
     }
 
-    key_t key = ftok("./key", 'b');
+    key_t key = ftok(config_file, 'a');
     int msqid = msgget(key, 0666 | IPC_CREAT);
 
-    struct msgbuf message;
+    msgbuf message;
     message.mtype = 2;
 
     //keep listening for data
@@ -207,7 +205,7 @@ int receive_packets(void) {
         message.packet_len = bytes_recv;
         message.sender = si_other.sin_addr;
         memcpy(message.packet, buf, bytes_recv);
-        msgsnd(msqid, &message, sizeof(struct msgbuf), 0); 
+        msgsnd(msqid, &message, sizeof(msgbuf), 0); 
     }
 
     close(s);
@@ -240,43 +238,34 @@ void read_configuration() {
             if (!strcmp(key, "bind_addr")) {
                 config.bind_addr = malloc(strlen(value) + 1);
                 strcpy(config.bind_addr, value);
-                printf("%s\n", config.bind_addr);
             }
             else if (!strcmp(key, "bind_port")) {
                 config.bind_port = atoi(value);
-                printf("%d\n", config.bind_port);
             }
             else if (!strcmp(key, "threads")) {
                 config.threads = atoi(value);
-                printf("%d\n", config.threads);
             }
             else if (!strcmp(key, "queue_size")) {
                 config.queue_size = atoi(value);
-                printf("%d\n", config.queue_size);
             }
             else if (!strcmp(key, "sourcetype")) {
                 config.sourcetype = malloc(strlen(value) + 1);
                 strcpy(config.sourcetype, value);
-                printf("%s\n", config.sourcetype);
             }
             else if (!strcmp(key, "hec_token")) {
                 config.hec_token = malloc(strlen(value) + 1);
                 strcpy(config.hec_token, value);
-                printf("%s\n", config.hec_token);
             }
             else if (!strcmp(key, "hec_server")) {
                 config.hec_server = malloc(strlen(value) + 1);
                 strcpy(config.hec_server, value);
-                printf("%s\n", config.hec_server);
             }
             else if (!strcmp(key, "hec_port")) {
                 config.hec_port = atoi(value);
-                printf("%d\n", config.hec_port);
             }
             else if (!strcmp(key, "log_file")) {
                 config.log_file = malloc(strlen(value) + 1);
                 strcpy(config.log_file, value);
-                printf("%s\n", config.log_file);
             }
         }
     }
@@ -322,6 +311,29 @@ int parse_args(int argc, char** argv) {
     return 0;
 }
 
+void logger(char* message) {
+    key_t key = ftok(config_file, 'b');
+    int log_queue = msgget(key, 0666 | IPC_CREAT);
+    
+    logbuf log_message;
+    log_message.mtype = 1;
+    strcpy(log_message.message, message);
+
+    msgsnd(log_queue, &log_message, sizeof(logbuf), 0);
+}
+
+void start_logger() {
+    key_t key = ftok(config_file, 'b');
+    int log_queue = msgget(key, 0666 | IPC_CREAT);
+    configure_queue(log_queue);
+
+    while(1) {
+        logbuf l;
+        msgrcv(log_queue, &l, sizeof(logbuf), 1, 0);
+        printf("Logger: %s\n", l.message);        
+    }
+}
+
 int main(int argc, char** argv) {
 
     parse_args(argc, argv);
@@ -330,6 +342,10 @@ int main(int argc, char** argv) {
     pid_t pids[config.threads];
     int i;
 
+    if (fork() == 0) {
+        start_logger();
+        exit(0);
+    }
 
     for (i = 0; i < config.threads; ++i) {
        if ((pids[i] = fork()) == 0 ) {
