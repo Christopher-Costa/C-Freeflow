@@ -4,7 +4,7 @@
 #include <unistd.h>   /* Provides: getopt */
 #include "config.h"
 
-int parse_command_arguments(int argc, char** argv, char **config_file) {
+int parse_command_args(int argc, char** argv, freeflow_config* config_obj) {
     int option;
     int index;
     opterr = 0;
@@ -12,7 +12,8 @@ int parse_command_arguments(int argc, char** argv, char **config_file) {
     while ((option = getopt (argc, argv, "c:")) != -1)
         switch (option) {
             case 'c':
-                *config_file = optarg;
+                config_obj->config_file = malloc(strlen(optarg) + 1);
+                strcpy(config_obj->config_file, optarg);
                 break;
             case '?':
                 if (optopt == 'c') {
@@ -40,7 +41,7 @@ int parse_command_arguments(int argc, char** argv, char **config_file) {
         exit(0);
     }
 
-    if (!config_file) {
+    if (!config_obj->config_file) {
         printf("No configuration file provided.\n");
         exit(0);
     }
@@ -48,11 +49,11 @@ int parse_command_arguments(int argc, char** argv, char **config_file) {
     return 0;
 }
 
-void read_configuration(char* config_file, freeflow_config* config_obj) {
+void read_configuration(freeflow_config* config_obj) {
     char line[1024];
     FILE *c;
 
-    if ((c = fopen(config_file, "r")) == NULL) {
+    if ((c = fopen(config_obj->config_file, "r")) == NULL) {
         printf("Couldn't open config file.\n");
         exit(0);
     }

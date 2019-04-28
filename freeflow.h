@@ -1,16 +1,5 @@
-#define BUFLEN 4 * 1024 // Max length of buffer
-
-typedef struct freeflow_config {
-    char* bind_addr;
-    int bind_port;
-    int threads;
-    long queue_size;
-    char *sourcetype;
-    char *hec_token;
-    char *hec_server;
-    int hec_port;
-    char *log_file;
-} freeflow_config;
+#define BUFLEN 4*1024 // Max length of buffer
+#define PACKET_BUFFER_SIZE 64*1024
 
 typedef struct msgbuf {
     long mtype;  /* must be positive */

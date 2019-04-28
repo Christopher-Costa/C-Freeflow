@@ -9,7 +9,6 @@ int create_queue(char* filename, char id) {
     return(queue_id);
 }
 
-
 void set_queue_size(int queue_id, int queue_size) {
     struct msqid_ds ds = {0};
     msgctl(queue_id, IPC_STAT, &ds);

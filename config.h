@@ -8,8 +8,9 @@ typedef struct freeflow_config {
     char *hec_server;
     int hec_port;
     char *log_file;
+    char *config_file;
 } freeflow_config;
 
-int parse_command_arguments(int argc, char** argv, char **config_file);
-void read_configuration(char* config_file, freeflow_config* config_obj);
+int parse_command_args(int argc, char** argv, freeflow_config* config_obj);
+void read_configuration(freeflow_config* config_obj);
 

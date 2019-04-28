@@ -5,6 +5,9 @@
 #include <arpa/inet.h>   /* Provides: inet_ntoa */
 #include "freeflow.h"
 #include "netflow.h"
+#include "config.h"
+
+#define PACKET_BUFFER_SIZE 64*1024
 
 freeflow_config config;
 
@@ -133,19 +136,25 @@ int splunk_worker(int worker_num, char *config_file, int log_queue) {
     int packet_queue = create_queue(config_file, '2');
 
     char *payload, *recv_buffer;
-    payload = malloc(64 * 1024);
-    recv_buffer = malloc(64 * 1024);
+    payload = malloc(PACKET_BUFFER_SIZE);
+    recv_buffer = malloc(PACKET_BUFFER_SIZE);
+    
+    msgbuf *m = malloc(sizeof(msgbuf));
     while(1) {
-        msgbuf m;
+        msgrcv(packet_queue, m, sizeof(msgbuf), 2, 0);
+        char results = parse_packet(m->packet, 
+                                    m->packet_len, 
+                                    &payload, 
+                                    m->sender);
         
-        msgrcv(packet_queue, &m, sizeof(msgbuf), 2, 0);
-        char results = parse_packet(m.packet, m.packet_len, &payload, m.sender);        
         int bytes_sent = write(sock, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
-            printf("Incomplete delivery\n");
+            logger("Incomplete packet delivery.", log_queue);
         }
-        read(sock, recv_buffer, 64 * 1024);
+
+        read(sock, recv_buffer, PACKET_BUFFER_SIZE);
     }
+    free(m);
     free(payload);
     free(recv_buffer);
 }
@@ -173,7 +182,6 @@ int receive_packets(int log_queue, char *config_file) {
     if (bind(s, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
         die("bind");
     }
-
     logger("Socket bound and listening", log_queue);
 
     int packet_queue = create_queue(config_file, '2');
@@ -208,15 +216,15 @@ int receive_packets(int log_queue, char *config_file) {
 int main(int argc, char** argv) {
     char *config_file;
 
-    parse_command_arguments(argc, argv, &config_file);
-    read_configuration(config_file, &config);
+    parse_command_args(argc, argv, &config);
+    read_configuration(&config);
 
     pid_t pids[config.threads];
     int i;
-    int log_queue = create_queue(config_file, '1');
+    int log_queue = create_queue(config.config_file, '1');
 
     if (fork() == 0) {
-        start_logger(config_file, config, log_queue);
+        start_logger(config.log_file, log_queue);
         exit(0);
     }
 
