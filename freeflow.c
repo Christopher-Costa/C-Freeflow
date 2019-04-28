@@ -13,18 +13,14 @@ void die(char *s)
     exit(1);
 }
 
-int parse_packet(char* packet, 
-                 int packet_len, 
-                 char** payload, 
-                 char* exporter,
-                 freeflow_config* config) {
+int parse_packet(packet_buffer* packet, char** payload, freeflow_config* config) {
     // Make sure the size of the packet is sane for netflow.
-    if ( (packet_len - 24) % 48 > 0 ){
+    if ( (packet->packet_len - 24) % 48 > 0 ){
         logger("Invalid length");
         return 1;
     }
 
-    netflow_header *h = (netflow_header*)packet;
+    netflow_header *h = (netflow_header*)packet->packet;
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
@@ -35,7 +31,7 @@ int parse_packet(char* packet,
     short num_records = ntohs(h->count);
 
     // Make sure the number of records is sane
-    if (num_records != (packet_len - 24) / 48){
+    if (num_records != (packet->packet_len - 24) / 48){
         logger("Invalid number of records: %d", num_records);
         return 1;
     }
@@ -87,7 +83,7 @@ int parse_packet(char* packet,
 
         char record[record_size];
         sprintf(record, "{\"event\": \"%s,%s,%s,%s,%u,%u,%lu,%lu,%lu,%u,%u,%u,%u,%u,%u,%u,%u,%u\", \"sourcetype\": \"%s\", \"time\": \"%.6f\"}",
-            exporter, srcaddr, dstaddr, nexthop,
+            packet->sender, srcaddr, dstaddr, nexthop,
             input, output, packets, bytes, duration,
             sport, dport, flags, prot, tos, srcas, dstas,
             srcmask, dstmask, config->sourcetype,
@@ -148,14 +144,10 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     payload = malloc(PACKET_BUFFER_SIZE);
     recv_buffer = malloc(PACKET_BUFFER_SIZE);
     
-    packet_buffer *m = malloc(sizeof(packet_buffer));
+    packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(1) {
-        msgrcv(packet_queue, m, sizeof(packet_buffer), 2, 0);
-        char results = parse_packet(m->packet, 
-                                    m->packet_len, 
-                                    &payload, 
-                                    m->sender,
-                                    config);
+        msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
+        char results = parse_packet(packet, &payload, config);
         
         int bytes_sent = write(sock, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
@@ -164,7 +156,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 
         read(sock, recv_buffer, PACKET_BUFFER_SIZE);
     }
-    free(m);
+    free(packet);
     free(payload);
     free(recv_buffer);
 }
