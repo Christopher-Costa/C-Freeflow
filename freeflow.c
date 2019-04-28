@@ -96,12 +96,20 @@ int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
         );
         strcat(splunk_payload, record);
     }
-    
-    sprintf(*payload, 
-            "POST /services/collector HTTP/1.1\r\nHost: %s:%d\r\nUser-Agent: freeflow\r\nConnection: keep-alive\r\nAuthorization: Splunk %s\r\nContent-Length: %d\r\n\r\n", 
-            config.hec_server, config.hec_port, config.hec_token, (int)strlen(splunk_payload));
-    strcat(*payload, splunk_payload);
 
+    char header[500];
+    strcpy(header, "POST /services/collector HTTP/1.1\r\n");        
+    strcat(header, "Host: %s:%d\r\n");
+    strcat(header, "User-Agent: freeflow\r\n");
+    strcat(header, "Connection: keep-alive\r\n");
+    strcat(header, "Authorization: Splunk %s\r\n");
+    strcat(header, "Content-Length: %d\r\n\r\n"); 
+
+    sprintf(*payload, header, config.hec_server, 
+                              config.hec_port, 
+                              config.hec_token,
+                              (int)strlen(splunk_payload));
+    strcat(*payload, splunk_payload);
     return 0;
 }
 
