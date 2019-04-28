@@ -8,16 +8,12 @@
 #include "config.h"
 #include "socket.h"
 
-void die(char *s)
-{
-    perror(s);
-    exit(1);
-}
+int parse_packet(packet_buffer* packet, char** payload, 
+                 freeflow_config* config, int log_queue) {
 
-int parse_packet(packet_buffer* packet, char** payload, freeflow_config* config) {
     // Make sure the size of the packet is sane for netflow.
     if ( (packet->packet_len - 24) % 48 > 0 ){
-        logger("Invalid length");
+        logger("Invalid netflow packet length", log_queue);
         return 1;
     }
 
@@ -25,7 +21,9 @@ int parse_packet(packet_buffer* packet, char** payload, freeflow_config* config)
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
-        logger("Invalid version: %d", ntohs(h->version));
+        char log_message[128];
+        sprintf(log_message, "Packet received with invalid version: %d", ntohs(h->version));
+        logger(log_message, log_queue);
         return 1;
     }
 
@@ -33,7 +31,9 @@ int parse_packet(packet_buffer* packet, char** payload, freeflow_config* config)
 
     // Make sure the number of records is sane
     if (num_records != (packet->packet_len - 24) / 48){
-        logger("Invalid number of records: %d", num_records);
+        char log_message[128];
+        sprintf(log_message, "Invalid number of records: %d", num_records);
+        logger(log_message, log_queue);
         return 1;
     }
 
@@ -129,7 +129,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(1) {
         msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
-        char results = parse_packet(packet, &payload, config);
+        char results = parse_packet(packet, &payload, config, log_queue);
         
         int bytes_sent = write(socket_id, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {

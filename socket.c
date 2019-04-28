@@ -36,7 +36,7 @@ int bind_socket(int log_queue, freeflow_config *config) {
     
     //create a UDP socket
     if ((socket_id = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-        logger("Couldn't open socket to Splunk", log_queue);
+        logger("Couldn't open local socket for netflow.", log_queue);
         exit(1);
     }
     
@@ -49,7 +49,8 @@ int bind_socket(int log_queue, freeflow_config *config) {
     
     //bind socket to port
     if (bind(socket_id, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
-        die("bind");
+        logger("Couldn't bind local socket for netflow.", log_queue);
+        exit(1);
     }
 
     logger("Socket bound and listening", log_queue);
