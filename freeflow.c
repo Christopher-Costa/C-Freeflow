@@ -7,8 +7,6 @@
 #include "netflow.h"
 #include "config.h"
 
-#define PACKET_BUFFER_SIZE 64*1024
-
 freeflow_config config;
 
 void die(char *s)
@@ -134,14 +132,15 @@ int splunk_worker(int worker_num, char *config_file, int log_queue) {
     logger(log_message, log_queue);
 
     int packet_queue = create_queue(config_file, '2');
+    set_queue_size(packet_queue, config.queue_size);
 
     char *payload, *recv_buffer;
     payload = malloc(PACKET_BUFFER_SIZE);
     recv_buffer = malloc(PACKET_BUFFER_SIZE);
     
-    msgbuf *m = malloc(sizeof(msgbuf));
+    packet_buffer *m = malloc(sizeof(packet_buffer));
     while(1) {
-        msgrcv(packet_queue, m, sizeof(msgbuf), 2, 0);
+        msgrcv(packet_queue, m, sizeof(packet_buffer), 2, 0);
         char results = parse_packet(m->packet, 
                                     m->packet_len, 
                                     &payload, 
@@ -164,7 +163,7 @@ int receive_packets(int log_queue, char *config_file) {
     struct sockaddr_in si_other;
     
     int s, i, slen = sizeof(si_other);
-    char buf[BUFLEN];
+    char packet[PACKET_BUFFER_SIZE];
     
     //create a UDP socket
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
@@ -186,19 +185,20 @@ int receive_packets(int log_queue, char *config_file) {
 
     int packet_queue = create_queue(config_file, '2');
 
-    msgbuf message;
+    packet_buffer message;
     message.mtype = 2;
 
     //keep listening for data
     while(1)
     {
         int bytes_recv;
-        bytes_recv = recvfrom(s, buf, BUFLEN, 0, (struct sockaddr *)&si_other, &slen);
+        bytes_recv = recvfrom(s, packet, PACKET_BUFFER_SIZE, 0, 
+                              (struct sockaddr *)&si_other, &slen);
 
         message.packet_len = bytes_recv;
         strcpy(message.sender, inet_ntoa(si_other.sin_addr));
-        memcpy(message.packet, buf, bytes_recv);
-        msgsnd(packet_queue, &message, sizeof(msgbuf), 0); 
+        memcpy(message.packet, packet, bytes_recv);
+        msgsnd(packet_queue, &message, sizeof(packet_buffer), 0); 
     }
 
     close(s);
