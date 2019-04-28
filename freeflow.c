@@ -161,15 +161,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     free(recv_buffer);
 }
 
-int receive_packets(int log_queue, freeflow_config *config) {
+int bind_socket(int log_queue, freeflow_config *config) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
     
-    int s, i, slen = sizeof(si_other);
-    char packet[PACKET_BUFFER_SIZE];
+    int socket_id;;
     
     //create a UDP socket
-    if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+    if ((socket_id = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         die("socket");
     }
     
@@ -181,12 +180,21 @@ int receive_packets(int log_queue, freeflow_config *config) {
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
     
     //bind socket to port
-    if (bind(s, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
+    if (bind(socket_id, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
         die("bind");
     }
-    logger("Socket bound and listening", log_queue);
 
+    logger("Socket bound and listening", log_queue);
+    return(socket_id);
+}
+
+int receive_packets(int log_queue, freeflow_config *config) {
+    char packet[PACKET_BUFFER_SIZE];
+    int socket_id = bind_socket(log_queue, config);
     int packet_queue = create_queue(config->config_file, '2');
+
+    struct sockaddr_in *sender = malloc(sizeof(struct sockaddr));;
+    int socket_len = sizeof(*sender);
 
     packet_buffer message;
     message.mtype = 2;
@@ -195,16 +203,17 @@ int receive_packets(int log_queue, freeflow_config *config) {
     while(1)
     {
         int bytes_recv;
-        bytes_recv = recvfrom(s, packet, PACKET_BUFFER_SIZE, 0, 
-                              (struct sockaddr *)&si_other, &slen);
+        bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, 
+                              (struct sockaddr*)sender, &socket_len);
 
         message.packet_len = bytes_recv;
-        strcpy(message.sender, inet_ntoa(si_other.sin_addr));
+        strcpy(message.sender, inet_ntoa(sender->sin_addr));
         memcpy(message.packet, packet, bytes_recv);
         msgsnd(packet_queue, &message, sizeof(packet_buffer), 0); 
     }
 
-    close(s);
+    free(sender);
+    close(socket_id);
     return 0;
 }
 
