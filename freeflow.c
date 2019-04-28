@@ -111,12 +111,12 @@ int parse_packet(packet_buffer* packet, char** payload, freeflow_config* config)
     return 0;
 }
 
-int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
+int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
-    int sock;
+    int socket_id;
 
-    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if((socket_id = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         logger("Error opening socket.", log_queue);
         return -1;
     }
@@ -131,7 +131,13 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
     addr.sin_port = htons(config->hec_port);
-    connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
+    connect(socket_id, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
+
+    return(socket_id);
+}
+
+int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
+    int socket_id = connect_socket(worker_num, config, log_queue);
 
     char log_message[128];
     sprintf(log_message, "Splunk worker #%d started.", worker_num);
@@ -149,12 +155,12 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
         char results = parse_packet(packet, &payload, config);
         
-        int bytes_sent = write(sock, payload, strlen(payload));
+        int bytes_sent = write(socket_id, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
             logger("Incomplete packet delivery.", log_queue);
         }
 
-        read(sock, recv_buffer, PACKET_BUFFER_SIZE);
+        read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
     }
     free(packet);
     free(payload);
