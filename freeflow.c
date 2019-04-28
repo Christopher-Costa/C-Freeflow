@@ -7,15 +7,17 @@
 #include "netflow.h"
 #include "config.h"
 
-freeflow_config config;
-
 void die(char *s)
 {
     perror(s);
     exit(1);
 }
 
-int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
+int parse_packet(char* packet, 
+                 int packet_len, 
+                 char** payload, 
+                 char* exporter,
+                 freeflow_config* config) {
     // Make sure the size of the packet is sane for netflow.
     if ( (packet_len - 24) % 48 > 0 ){
         logger("Invalid length");
@@ -44,7 +46,7 @@ int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
 
     // The maximum size of a record minus the variable sourcetype is 233 bytes.
     // 250 bytes provides a reasonable safety buffer.
-    int record_size = (250 + strlen(config.sourcetype));
+    int record_size = (250 + strlen(config->sourcetype));
 
     char splunk_payload[record_size * num_records];
     splunk_payload[0] = '\0';
@@ -88,7 +90,7 @@ int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
             exporter, srcaddr, dstaddr, nexthop,
             input, output, packets, bytes, duration,
             sport, dport, flags, prot, tos, srcas, dstas,
-            srcmask, dstmask, config.sourcetype,
+            srcmask, dstmask, config->sourcetype,
             (  (double)unix_secs 
              + (double)unix_nsecs / 1000000000 
              - (double)sys_uptime/1000 
@@ -105,15 +107,15 @@ int parse_packet(char* packet, int packet_len, char** payload, char* exporter) {
     strcat(header, "Authorization: Splunk %s\r\n");
     strcat(header, "Content-Length: %d\r\n\r\n"); 
 
-    sprintf(*payload, header, config.hec_server, 
-                              config.hec_port, 
-                              config.hec_token,
+    sprintf(*payload, header, config->hec_server, 
+                              config->hec_port, 
+                              config->hec_token,
                               (int)strlen(splunk_payload));
     strcat(*payload, splunk_payload);
     return 0;
 }
 
-int splunk_worker(int worker_num, char *config_file, int log_queue) {
+int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
     int sock;
@@ -122,25 +124,25 @@ int splunk_worker(int worker_num, char *config_file, int log_queue) {
         logger("Error opening socket.", log_queue);
         return -1;
     }
-
+ 
     addr.sin_family = AF_INET;
 
-    host = gethostbyname(config.hec_server);
+    host = gethostbyname(config->hec_server);
     if(host == NULL) {
-        logger("%s unknown host.", config.hec_server);
+        logger("%s unknown host.", config->hec_server);
         return -1;
     }
 
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
-    addr.sin_port = htons(config.hec_port);
+    addr.sin_port = htons(config->hec_port);
     connect(sock, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
 
     char log_message[128];
     sprintf(log_message, "Splunk worker #%d started.", worker_num);
     logger(log_message, log_queue);
 
-    int packet_queue = create_queue(config_file, '2');
-    set_queue_size(packet_queue, config.queue_size);
+    int packet_queue = create_queue(config->config_file, '2');
+    set_queue_size(packet_queue, config->queue_size);
 
     char *payload, *recv_buffer;
     payload = malloc(PACKET_BUFFER_SIZE);
@@ -152,7 +154,8 @@ int splunk_worker(int worker_num, char *config_file, int log_queue) {
         char results = parse_packet(m->packet, 
                                     m->packet_len, 
                                     &payload, 
-                                    m->sender);
+                                    m->sender,
+                                    config);
         
         int bytes_sent = write(sock, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
@@ -166,7 +169,7 @@ int splunk_worker(int worker_num, char *config_file, int log_queue) {
     free(recv_buffer);
 }
 
-int receive_packets(int log_queue, char *config_file) {
+int receive_packets(int log_queue, freeflow_config *config) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
     
@@ -182,7 +185,7 @@ int receive_packets(int log_queue, char *config_file) {
     memset((char *) &si_me, 0, sizeof(si_me));
     
     si_me.sin_family = AF_INET;
-    si_me.sin_port = htons(config.bind_port);
+    si_me.sin_port = htons(config->bind_port);
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
     
     //bind socket to port
@@ -191,7 +194,7 @@ int receive_packets(int log_queue, char *config_file) {
     }
     logger("Socket bound and listening", log_queue);
 
-    int packet_queue = create_queue(config_file, '2');
+    int packet_queue = create_queue(config->config_file, '2');
 
     packet_buffer message;
     message.mtype = 2;
@@ -222,26 +225,26 @@ int receive_packets(int log_queue, char *config_file) {
  * will handle send and receive functions for the Netflow UDP socket.
  */
 int main(int argc, char** argv) {
-    char *config_file;
+    freeflow_config *config = malloc(sizeof(freeflow_config));
 
-    parse_command_args(argc, argv, &config);
-    read_configuration(&config);
+    parse_command_args(argc, argv, config);
+    read_configuration(config);
 
-    pid_t pids[config.threads];
     int i;
-    int log_queue = create_queue(config.config_file, '1');
+    int log_queue = create_queue(config->config_file, '1');
 
     if (fork() == 0) {
-        start_logger(config.log_file, log_queue);
+        start_logger(config->log_file, log_queue);
         exit(0);
     }
 
-    for (i = 0; i < config.threads; ++i) {
-       if ((pids[i] = fork()) == 0 ) {
-            splunk_worker(i, config_file, log_queue);
+    for (i = 0; i < config->threads; ++i) {
+       if (fork() == 0) {
+            splunk_worker(i, config, log_queue);
             exit(0);
         }
     }
     
-    receive_packets(log_queue, config_file);
+    receive_packets(log_queue, config);
+    free(config);
 }
