@@ -7,6 +7,7 @@
 #include "netflow.h"
 #include "config.h"
 #include "socket.h"
+#include "queue.h"
 
 int parse_packet(packet_buffer* packet, char** payload, 
                  freeflow_config* config, int log_queue) {
@@ -119,12 +120,11 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     sprintf(log_message, "Splunk worker #%d started.", worker_num);
     logger(log_message, log_queue);
 
-    int packet_queue = create_queue(config->config_file, '2');
+    int packet_queue = create_queue(config->config_file, LOG_QUEUE);
     set_queue_size(packet_queue, config->queue_size);
 
-    char *payload, *recv_buffer;
-    payload = malloc(PACKET_BUFFER_SIZE);
-    recv_buffer = malloc(PACKET_BUFFER_SIZE);
+    char *payload = malloc(PACKET_BUFFER_SIZE);
+    char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
     
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(1) {
@@ -146,7 +146,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 int receive_packets(int log_queue, freeflow_config *config) {
     char packet[PACKET_BUFFER_SIZE];
     int socket_id = bind_socket(log_queue, config);
-    int packet_queue = create_queue(config->config_file, '2');
+    int packet_queue = create_queue(config->config_file, LOG_QUEUE);
 
     struct sockaddr_in *sender = malloc(sizeof(struct sockaddr));;
     int socket_len = sizeof(*sender);
@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
     read_configuration(config);
 
     int i;
-    int log_queue = create_queue(config->config_file, '1');
+    int log_queue = create_queue(config->config_file, PACKET_QUEUE);
 
     if (fork() == 0) {
         start_logger(config->log_file, log_queue);
@@ -196,7 +196,7 @@ int main(int argc, char** argv) {
 
     for (i = 0; i < config->threads; ++i) {
        if (fork() == 0) {
-            splunk_worker(i, config, log_queue);
+            splunk_worker(i + 1, config, log_queue);
             exit(0);
         }
     }

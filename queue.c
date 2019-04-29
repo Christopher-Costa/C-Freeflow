@@ -2,7 +2,7 @@
 #include <sys/msg.h>  /* Provides: struct msqid_ds */
 #include "queue.h"
 
-int create_queue(char* filename, char id) {
+int create_queue(char* filename, int id) {
     key_t key = ftok(filename, id);
     int queue_id = msgget(key, 0666 | IPC_CREAT);
 
