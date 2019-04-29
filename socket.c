@@ -1,6 +1,7 @@
 #include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
+#include <netinet/tcp.h>
 #include "config.h"
 
 int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
@@ -12,6 +13,15 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
         logger("Error opening socket.", log_queue);
         return -1;
     }
+
+    int yes = 1;
+    setsockopt(socket_id, SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(int));
+
+    int idle = 60;
+    setsockopt(socket_id, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(int));
+
+    int interval = 60;
+    setsockopt(socket_id, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(int));
  
     addr.sin_family = AF_INET;
 
