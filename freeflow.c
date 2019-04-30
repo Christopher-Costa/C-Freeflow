@@ -23,7 +23,7 @@ int hec_header(freeflow_config* config, int content_length, char* header) {
 
 }
 
-int dummy_payload(char* payload, freeflow_config* config) {
+int empty_payload(char* payload, freeflow_config* config) {
     hec_header(config, 0, payload);
     return 0;
 }
@@ -121,6 +121,14 @@ int parse_packet(packet_buffer* packet, char* payload,
     return 0;
 }
 
+int response_code(char* response) {
+    char *token;
+    char delim[2] = " ";
+    token = strtok(response, delim);
+    token = strtok(NULL, delim);
+    return(atoi(token));
+}
+
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     int socket_id = connect_socket(worker_num, config, log_queue);
     char *payload = malloc(PACKET_BUFFER_SIZE);
@@ -129,10 +137,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 
     // Send an empty HEC message to prevent Splunk from closing the connection
     // within 40s.
-    dummy_payload(dummy, config); 
+    empty_payload(dummy, config); 
     write(socket_id, dummy, strlen(dummy));
     read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
     free(dummy);
+    if (response_code(recv_buffer) == 403) {
+        logger("Unable to authenticate to Splunk.", log_queue);
+        exit(0);
+    };
 
     char log_message[128];
     sprintf(log_message, "Splunk worker #%d started.", worker_num);
