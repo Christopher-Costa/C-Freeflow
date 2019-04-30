@@ -9,7 +9,7 @@
 #include "socket.h"
 #include "queue.h"
 
-int parse_packet(packet_buffer* packet, char** payload, 
+int parse_packet(packet_buffer* packet, char* payload, 
                  freeflow_config* config, int log_queue) {
 
     // Make sure the size of the packet is sane for netflow.
@@ -105,11 +105,11 @@ int parse_packet(packet_buffer* packet, char** payload,
     strcat(header, "Authorization: Splunk %s\r\n");
     strcat(header, "Content-Length: %d\r\n\r\n"); 
 
-    sprintf(*payload, header, config->hec_server, 
-                              config->hec_port, 
-                              config->hec_token,
-                              (int)strlen(splunk_payload));
-    strcat(*payload, splunk_payload);
+    sprintf(payload, header, config->hec_server, 
+                             config->hec_port, 
+                             config->hec_token,
+                             (int)strlen(splunk_payload));
+    strcat(payload, splunk_payload);
     return 0;
 }
 
@@ -129,7 +129,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(1) {
         msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
-        char results = parse_packet(packet, &payload, config, log_queue);
+        char results = parse_packet(packet, payload, config, log_queue);
         
         int bytes_sent = write(socket_id, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
