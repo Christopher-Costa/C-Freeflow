@@ -23,6 +23,11 @@ int hec_header(freeflow_config* config, int content_length, char* header) {
 
 }
 
+int dummy_payload(char* payload, freeflow_config* config) {
+    hec_header(config, 0, payload);
+    return 0;
+}
+
 int parse_packet(packet_buffer* packet, char* payload, 
                  freeflow_config* config, int log_queue) {
 
@@ -118,6 +123,16 @@ int parse_packet(packet_buffer* packet, char* payload,
 
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     int socket_id = connect_socket(worker_num, config, log_queue);
+    char *payload = malloc(PACKET_BUFFER_SIZE);
+    char *dummy = malloc(PACKET_BUFFER_SIZE);
+    char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
+
+    // Send an empty HEC message to prevent Splunk from closing the connection
+    // within 40s.
+    dummy_payload(dummy, config); 
+    write(socket_id, dummy, strlen(dummy));
+    read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
+    free(dummy);
 
     char log_message[128];
     sprintf(log_message, "Splunk worker #%d started.", worker_num);
@@ -126,9 +141,6 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     int packet_queue = create_queue(config->config_file, LOG_QUEUE);
     set_queue_size(packet_queue, config->queue_size);
 
-    char *payload = malloc(PACKET_BUFFER_SIZE);
-    char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
-    
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(1) {
         msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
