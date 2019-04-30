@@ -8,6 +8,20 @@
 #include "config.h"
 #include "socket.h"
 #include "queue.h"
+int hec_header(freeflow_config* config, int content_length, char* header) {
+    char h[500];
+
+    strcpy(h, "POST /services/collector HTTP/1.1\r\n");        
+    strcat(h, "Host: %s:%d\r\n");
+    strcat(h, "User-Agent: freeflow\r\n");
+    strcat(h, "Connection: keep-alive\r\n");
+    strcat(h, "Authorization: Splunk %s\r\n");
+    strcat(h, "Content-Length: %d\r\n\r\n"); 
+
+    sprintf(header, h, config->hec_server, config->hec_port, 
+                       config->hec_token, content_length);
+
+}
 
 int parse_packet(packet_buffer* packet, char* payload, 
                  freeflow_config* config, int log_queue) {
@@ -97,18 +111,7 @@ int parse_packet(packet_buffer* packet, char* payload,
         strcat(splunk_payload, record);
     }
 
-    char header[500];
-    strcpy(header, "POST /services/collector HTTP/1.1\r\n");        
-    strcat(header, "Host: %s:%d\r\n");
-    strcat(header, "User-Agent: freeflow\r\n");
-    strcat(header, "Connection: keep-alive\r\n");
-    strcat(header, "Authorization: Splunk %s\r\n");
-    strcat(header, "Content-Length: %d\r\n\r\n"); 
-
-    sprintf(payload, header, config->hec_server, 
-                             config->hec_port, 
-                             config->hec_token,
-                             (int)strlen(splunk_payload));
+    hec_header(config, (int)strlen(splunk_payload), payload);
     strcat(payload, splunk_payload);
     return 0;
 }
