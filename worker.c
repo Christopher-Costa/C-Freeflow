@@ -35,7 +35,7 @@ int parse_packet(packet_buffer* packet, char* payload,
 
     // Make sure the size of the packet is sane for netflow.
     if ( (packet->packet_len - 24) % 48 > 0 ){
-        logger("Invalid netflow packet length", log_queue);
+        log_warning("Invalid netflow packet length", log_queue);
         return 1;
     }
 
@@ -45,7 +45,7 @@ int parse_packet(packet_buffer* packet, char* payload,
     if (ntohs(h->version) != 5){
         char log_message[128];
         sprintf(log_message, "Packet received with invalid version: %d", ntohs(h->version));
-        logger(log_message, log_queue);
+        log_warning(log_message, log_queue);
         return 1;
     }
 
@@ -55,7 +55,7 @@ int parse_packet(packet_buffer* packet, char* payload,
     if (num_records != (packet->packet_len - 24) / 48){
         char log_message[128];
         sprintf(log_message, "Invalid number of records: %d", num_records);
-        logger(log_message, log_queue);
+        log_warning(log_message, log_queue);
         return 1;
     }
 
@@ -152,14 +152,13 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     if (response_code(recv_buffer) == 403) {
         char log_message[128];
         sprintf(log_message, "Splunk worker #%d unable to authenticate with Splunk.", worker_num);
-        logger(log_message, log_queue);
+        log_error(log_message, log_queue);
         kill(getppid(), SIGTERM);
-        exit(0);
     };
 
     char log_message[128];
     sprintf(log_message, "Splunk worker #%d [PID %d] started.", worker_num, getpid());
-    logger(log_message, log_queue);
+    log_info(log_message, log_queue);
 
     int packet_queue = create_queue(config->config_file, LOG_QUEUE);
     set_queue_size(packet_queue, config->queue_size);
@@ -171,7 +170,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         
         int bytes_sent = write(socket_id, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
-            logger("Incomplete packet delivery.", log_queue);
+            log_warning("Incomplete packet delivery.", log_queue);
         }
 
         read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);

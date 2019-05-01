@@ -55,12 +55,12 @@ void clean_up(freeflow_config* config, pid_t workers[], pid_t logger_pid, int lo
     int i;
     for (i = 0; i < config->threads; ++i) {
         sprintf(log_message, "Terminating Splunk worker #%d [PID %d].", i, workers[i]);
-        logger(log_message, log_queue);
+        log_info(log_message, log_queue);
         kill(workers[i], SIGTERM);
     }
 
     sprintf(log_message, "Terminating logging process [PID %d].", logger_pid);
-    logger(log_message, log_queue);
+    log_info(log_message, log_queue);
     kill(logger_pid, SIGTERM);
 }
 
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    signal(SIGCHLD, SIG_IGN);
+//    signal(SIGCHLD, SIG_IGN);
     signal(SIGTERM, handle_signal);
     signal(SIGINT, handle_signal);
 

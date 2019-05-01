@@ -12,7 +12,7 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
     int socket_id;
 
     if((socket_id = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        logger("Error opening socket.", log_queue);
+        log_error("Error opening socket.", log_queue);
         return -1;
     }
 
@@ -29,7 +29,9 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
 
     host = gethostbyname(config->hec_server);
     if(host == NULL) {
-        logger("%s unknown host.", config->hec_server);
+        char log_message[128];
+        sprintf("%s unknown host.", config->hec_server);
+        log_error(log_message, log_queue);
         return -1;
     }
 
@@ -43,13 +45,14 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
 int bind_socket(int log_queue, freeflow_config *config) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
+    char log_message[128];
     
     int socket_id;
     
     //create a UDP socket
     if ((socket_id = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-        logger("Couldn't open local socket for netflow.", log_queue);
-        exit(1);
+        log_error("Couldn't open UDP socket for netflow.", log_queue);
+        kill(getpid(), SIGTERM);
     }
 
     // Set the socket to recv timeout after 1s
@@ -68,14 +71,14 @@ int bind_socket(int log_queue, freeflow_config *config) {
     
     //bind socket to port
     if (bind(socket_id, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
-        char log_message[128];
         sprintf(log_message, "Couldn't bind local socket %s:%d.", config->bind_addr, 
                                                                   config->bind_port);
-        logger(log_message, log_queue);
+        log_error(log_message, log_queue);
         kill(getpid(), SIGTERM);
-        exit(0);
     }
 
-    logger("Socket bound and listening", log_queue);
+    sprintf(log_message, "Socket bound and listening on %s:%d.", config->bind_addr,
+                                                                 config->bind_port);
+    log_info(log_message, log_queue);
     return(socket_id);
 }

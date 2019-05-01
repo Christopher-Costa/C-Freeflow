@@ -29,20 +29,32 @@ void handle_sigterm(int sig) {
 // Catch an interupt signal and do nothing.  We don't want the logging
 // process to cease until the main process tells it to, so that all 
 // expected log messages get written first.
-void handle_sigint(int sig) {
-}
+void handle_sigint(int sig) {}
 
-void logger(char* message, int queue_id) {
+void logger(char* message, char* severity, int queue_id) {
     logbuf log_message;
     log_message.mtype = 1;
     strcpy(log_message.message, message);
+    strcpy(log_message.severity, severity);
     msgsnd(queue_id, &log_message, sizeof(logbuf), 0);
 }
 
-void write_log(FILE *fd, char* message) {
+void log_info(char* message, int queue_id) {
+    logger(message, "INFO", queue_id);
+}
+
+void log_warning(char* message, int queue_id) {
+    logger(message, "WARNING", queue_id);
+}
+
+void log_error(char* message, int queue_id) {
+    logger(message, "ERROR", queue_id);
+}
+
+void write_log(FILE *fd, logbuf log) {
     char current_time[30];
     set_current_time(current_time);
-    fprintf(fd, "%s freeflow: %s\n", current_time, message);        
+    fprintf(fd, "%s freeflow: %s %s\n", current_time, log.severity, log.message);        
     fflush(fd);
 }
 
@@ -59,13 +71,13 @@ void start_logger(char *log_file, int queue_id) {
 
     char log_message[128];
     sprintf(log_message, "Logging process [PID %d] started.", getpid());
-    logger(log_message, queue_id);
+    log_info(log_message, queue_id);
 
     logbuf l;
     while(keep_logging || queue_length(queue_id)) {
         int bytes = msgrcv(queue_id, &l, sizeof(logbuf), 1, IPC_NOWAIT);
         if (bytes > 0) {
-            write_log(fd, l.message);
+            write_log(fd, l);
         }
         else {
             // If there were no messages, just wait 0.01s and try again.
