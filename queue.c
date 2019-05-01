@@ -15,6 +15,10 @@ int create_queue(char* filename, int id) {
     return(queue_id);
 }
 
+int delete_queue(int queue_id) {
+    return msgctl(queue_id, IPC_RMID, NULL);
+}
+
 void set_queue_size(int queue_id, int queue_size) {
     struct msqid_ds ds = {0};
     msgctl(queue_id, IPC_STAT, &ds);

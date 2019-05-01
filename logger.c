@@ -57,6 +57,10 @@ void start_logger(char *log_file, int queue_id) {
         exit(0);
     }
 
+    char log_message[128];
+    sprintf(log_message, "Logging process [PID %d] started.", getpid());
+    logger(log_message, queue_id);
+
     logbuf l;
     while(keep_logging || queue_length(queue_id)) {
         int bytes = msgrcv(queue_id, &l, sizeof(logbuf), 1, IPC_NOWAIT);
@@ -68,5 +72,7 @@ void start_logger(char *log_file, int queue_id) {
             usleep(10000);
         }        
     }
+
+    delete_queue(queue_id);
     fclose(fd);
 }
