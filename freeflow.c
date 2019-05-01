@@ -18,6 +18,8 @@ int number_of_workers;
 pid_t *worker_children;
 pid_t logger_pid;
 
+int keep_working = 1;
+
 int receive_packets(int log_queue, freeflow_config *config) {
     char packet[PACKET_BUFFER_SIZE];
     int socket_id = bind_socket(log_queue, config);
@@ -30,16 +32,18 @@ int receive_packets(int log_queue, freeflow_config *config) {
     message.mtype = 2;
 
     //keep listening for data
-    while(1)
-    {
+    while(keep_working) {
         int bytes_recv;
         bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, 
                               (struct sockaddr*)sender, &socket_len);
 
-        message.packet_len = bytes_recv;
-        strcpy(message.sender, inet_ntoa(sender->sin_addr));
-        memcpy(message.packet, packet, bytes_recv);
-        msgsnd(packet_queue, &message, sizeof(packet_buffer), 0); 
+        printf("XXXXX bytes_recv: %d\n", bytes_recv);
+        if (bytes_recv > 0) {
+            message.packet_len = bytes_recv;
+            strcpy(message.sender, inet_ntoa(sender->sin_addr));
+            memcpy(message.packet, packet, bytes_recv);
+            msgsnd(packet_queue, &message, sizeof(packet_buffer), 0); 
+        }
     }
 
     free(sender);

@@ -51,6 +51,12 @@ int bind_socket(int log_queue, freeflow_config *config) {
         logger("Couldn't open local socket for netflow.", log_queue);
         exit(1);
     }
+
+    // Set the socket to recv timeout after 1s
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    setsockopt(socket_id, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
     
     // zero out the structure
     memset((char *) &si_me, 0, sizeof(si_me));
