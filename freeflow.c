@@ -37,7 +37,6 @@ int receive_packets(int log_queue, freeflow_config *config) {
         bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, 
                               (struct sockaddr*)sender, &socket_len);
 
-        printf("XXXXX bytes_recv: %d\n", bytes_recv);
         if (bytes_recv > 0) {
             message.packet_len = bytes_recv;
             strcpy(message.sender, inet_ntoa(sender->sin_addr));
