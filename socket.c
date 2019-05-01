@@ -1,6 +1,8 @@
+#include <stdio.h>       /* Provides: sprintf */
 #include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
+#include <signal.h>
 #include <netinet/tcp.h>
 #include "config.h"
 
@@ -55,12 +57,17 @@ int bind_socket(int log_queue, freeflow_config *config) {
     
     si_me.sin_family = AF_INET;
     si_me.sin_port = htons(config->bind_port);
-    si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+    //si_me.sin_addr.s_addr = htonl(INADDR_ANY);
+    si_me.sin_addr.s_addr = inet_addr(config->bind_addr);
     
     //bind socket to port
     if (bind(socket_id, (struct sockaddr *)&si_me, sizeof(si_me)) == -1) {
-        logger("Couldn't bind local socket for netflow.", log_queue);
-        exit(1);
+        char log_message[128];
+        sprintf(log_message, "Couldn't bind local socket %s:%d.", config->bind_addr, 
+                                                                  config->bind_port);
+        logger(log_message, log_queue);
+        kill(getpid(), SIGTERM);
+        exit(0);
     }
 
     logger("Socket bound and listening", log_queue);
