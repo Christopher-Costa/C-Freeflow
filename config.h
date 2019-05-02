@@ -8,7 +8,7 @@ typedef struct freeflow_config {
     char bind_addr[16];
     int bind_port;
     int threads;
-    long queue_size;
+    int queue_size;
     char *sourcetype;
     char *hec_token;
     char *hec_tokens;

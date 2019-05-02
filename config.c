@@ -157,49 +157,42 @@ void handle_hec_tokens(freeflow_config* config, char* tokens) {
     printf("DONE\n");
 }
 
-void handle_bind_addr(freeflow_config* config, char* addr) {
-        if (!is_ip_address(addr)) {
-            printf("Invalid bind address: %s\n", addr);
-            exit(0);
+void setting_error(char *setting_desc, char* value) {
+    printf("Invalid setting for %s: %s\n", setting_desc, value);
+    exit(0);
+}
+
+void handle_addr_setting(char *setting, char *value, char *setting_desc) {
+        if (!is_ip_address(value)) {
+            setting_error(setting_desc, value);
         }
 
-        strcpy(config->bind_addr, addr);
+        strcpy(setting, value);
 }
 
-void handle_bind_port(freeflow_config* config, char* port) {
-    int port_int = str_to_port(port);
+void handle_int_setting(int *setting, char* value, char* setting_desc, int min, int max) {
+    if (is_integer(value)) {
+        int value_as_int = atoi(value);
 
-    if (!port_int) {
-        printf("Invalid bind port: %s\n", port);
-        exit(0);
+        if (value_as_int >= min) {
+            if ((value_as_int <= max) || (max == 0)) {
+                *setting = value_as_int;
+                return;
+            }
+        }
     }
-
-    config->bind_port = port_int;
+    setting_error(setting_desc, value);
 }
 
-void handle_threads(freeflow_config* config, char* threads) {
-    if (!is_integer(threads)) {
-        printf("Invalid setting for threads: %s\n", threads);
-        exit(0);
-    }
-
-    config->threads = atoi(threads);
+void handle_port_setting(int *setting, char* value, char* setting_desc) {
+    handle_int_setting(setting, value, setting_desc, 1, 65535);
 }
 
-void handle_queue_size(freeflow_config* config, char* queue_size) {
-    if (!is_integer(queue_size)) {
-        printf("Invalid setting for queue_size: %s\n", queue_size);
-        exit(0);
-    }
-
-    config->queue_size = atoi(queue_size);
-}
-
-void read_configuration(freeflow_config* config_obj) {
+void read_configuration(freeflow_config* config) {
     char line[1024];
     FILE *c;
 
-    if ((c = fopen(config_obj->config_file, "r")) == NULL) {
+    if ((c = fopen(config->config_file, "r")) == NULL) {
         printf("Couldn't open config file.\n");
         exit(0);
     }
@@ -219,44 +212,49 @@ void read_configuration(freeflow_config* config_obj) {
             }
 
             if (!strcmp(key, "bind_addr")) {
-                handle_bind_addr(config_obj, value);
+                handle_addr_setting(config->bind_addr, value, key);
             }
             else if (!strcmp(key, "bind_port")) {
-                handle_bind_port(config_obj, value);
+                handle_port_setting(&config->bind_port, value, key);
             }
             else if (!strcmp(key, "threads")) {
-                handle_threads(config_obj, value);
+                handle_int_setting(&config->threads, value, key, 1, 64);
             }
             else if (!strcmp(key, "queue_size")) {
-                handle_queue_size(config_obj, value);
+                handle_int_setting(&config->queue_size, value, key, 1, 0);
             }
             else if (!strcmp(key, "sourcetype")) {
-                config_obj->sourcetype = malloc(strlen(value) + 1);
-                strcpy(config_obj->sourcetype, value);
+                config->sourcetype = malloc(strlen(value) + 1);
+                strcpy(config->sourcetype, value);
             }
             else if (!strcmp(key, "hec_token")) {
-                config_obj->hec_token = malloc(strlen(value) + 1);
-                strcpy(config_obj->hec_token, value);
+                config->hec_token = malloc(strlen(value) + 1);
+                strcpy(config->hec_token, value);
             }
             else if (!strcmp(key, "hec_server")) {
-                config_obj->hec_server = malloc(strlen(value) + 1);
-                strcpy(config_obj->hec_server, value);
+                config->hec_server = malloc(strlen(value) + 1);
+                strcpy(config->hec_server, value);
             }
             else if (!strcmp(key, "hec_port")) {
-                config_obj->hec_port = atoi(value);
+                config->hec_port = atoi(value);
             }
             else if (!strcmp(key, "hec_servers")) {
-                handle_hec_servers(config_obj, value);
+                handle_hec_servers(config, value);
             }
             else if (!strcmp(key, "hec_tokens")) {
-                handle_hec_tokens(config_obj, value);
+                handle_hec_tokens(config, value);
             }
             else if (!strcmp(key, "log_file")) {
-                config_obj->log_file = malloc(strlen(value) + 1);
-                strcpy(config_obj->log_file, value);
+                config->log_file = malloc(strlen(value) + 1);
+                strcpy(config->log_file, value);
             }
         }
     }
 
+    printf("XXXX %d\n", config->threads);
+    printf("XXXX %d\n", config->queue_size);
+    printf("XXXX %s\n", config->bind_addr);
+    printf("XXXX %d\n", config->bind_port);
+    printf("XXXX %d\n", config->threads);
     fclose(c);
 }
