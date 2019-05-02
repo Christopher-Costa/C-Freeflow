@@ -49,6 +49,65 @@ int parse_command_args(int argc, char** argv, freeflow_config* config_obj) {
     return 0;
 }
 
+int object_count(char* str, char delim) {
+    int num_objects = 1;
+    int i;
+    for (i = 0; i < strlen(str); i++) {
+        if (str[i] == delim) {
+            num_objects++;
+        }
+    }
+    return num_objects;
+
+}
+
+void parse_hec_servers(freeflow_config* config, char* servers) {
+
+    if (config->num_servers == 0) {
+        config->num_servers = object_count(servers, ';');
+    }
+    else if (config->num_servers != object_count(servers, ';')) {
+        printf("Improper number of HEC servers\n");
+        exit(0);
+    }
+
+    config->num_servers = object_count(servers, ';');
+    config->hec_servers = malloc(sizeof(hec) * config->num_servers);
+
+    int i;
+    for (i = 0; i < config->num_servers; i++) {
+        char* server = strtok_r(servers, ";", &servers);
+        if (object_count(server, ':') != 2) {
+            printf("Improperly formated HEC server: %s\n", server);
+            exit(0);
+        }
+
+        char *ip   = strtok(server, ":");
+        char *port = strtok(NULL, ":");
+        strcpy(config->hec_servers[i].ip, ip);
+        strcpy(config->hec_servers[i].port, port);
+    }
+    printf("DONE\n");
+}
+
+void parse_hec_tokens(freeflow_config* config, char* tokens) {
+
+    if (config->num_servers == 0) {
+        config->num_servers = object_count(tokens, ';');
+    }
+    else if (config->num_servers != object_count(tokens, ';')) {
+        printf("Improper number of HEC tokens\n");
+        exit(0);
+    }
+
+    int i;
+    for (i = 0; i < config->num_servers; i++) {
+        char* token = strtok_r(tokens, ";", &tokens);
+        strcpy(config->hec_servers[i].token, token);
+    }
+    printf("DONE\n");
+}
+
 void read_configuration(freeflow_config* config_obj) {
     char line[1024];
     FILE *c;
@@ -99,6 +158,12 @@ void read_configuration(freeflow_config* config_obj) {
             }
             else if (!strcmp(key, "hec_port")) {
                 config_obj->hec_port = atoi(value);
+            }
+            else if (!strcmp(key, "hec_servers")) {
+                parse_hec_servers(config_obj, value);
+            }
+            else if (!strcmp(key, "hec_tokens")) {
+                parse_hec_tokens(config_obj, value);
             }
             else if (!strcmp(key, "log_file")) {
                 config_obj->log_file = malloc(strlen(value) + 1);

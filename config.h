@@ -1,3 +1,9 @@
+typedef struct hec {
+    char ip[16];
+    char port[6];
+    char token[128];
+} hec;
+
 typedef struct freeflow_config {
     char* bind_addr;
     int bind_port;
@@ -5,7 +11,10 @@ typedef struct freeflow_config {
     long queue_size;
     char *sourcetype;
     char *hec_token;
+    char *hec_tokens;
     char *hec_server;
+    hec* hec_servers;
+    int num_servers;
     int hec_port;
     char *log_file;
     char *config_file;
