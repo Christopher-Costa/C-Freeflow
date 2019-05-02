@@ -1,6 +1,6 @@
 typedef struct hec {
     char ip[16];
-    char port[6];
+    int port;
     char token[128];
 } hec;
 

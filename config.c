@@ -1,7 +1,8 @@
-#include <stdio.h>    /* Provides: printf */
-#include <string.h>   /* Provides: strcpy */
-#include <stdlib.h>   /* Provides: malloc */
-#include <unistd.h>   /* Provides: getopt */
+#include <stdio.h>     /* Provides: printf */
+#include <string.h>    /* Provides: strcpy */
+#include <stdlib.h>    /* Provides: malloc */
+#include <unistd.h>    /* Provides: getopt */
+#include <arpa/inet.h>
 #include "config.h"
 
 int parse_command_args(int argc, char** argv, freeflow_config* config_obj) {
@@ -58,13 +59,40 @@ int object_count(char* str, char delim) {
         }
     }
     return num_objects;
+}
 
+int is_ip_address(char *addr) {
+    unsigned long ip = 0;
+    if (inet_pton(AF_INET, addr, &ip) > 0) {
+        return 1;
+    }
+    return 0;
+}
+
+int str_to_port(char *str) {
+    // Since atoi has undefined behavior for invalid input,
+    // first verify that this resembles a integer.
+    int i;
+    for (i = 0; i < strlen(str); i++) {
+        if ((str[i] - '0' < 0) || (str[i] - '0' > 9)) {
+            return 0;
+        }
+    }
+    
+    // Now, convert the string and make sure the result
+    // falls into the valid port range.
+    int port = atoi(str);
+    if ((port < 1) || (port > 65535)) {
+        return 0;
+    }
+    return port;
 }
 
 void parse_hec_servers(freeflow_config* config, char* servers) {
 
     if (config->num_servers == 0) {
         config->num_servers = object_count(servers, ';');
+        config->hec_servers = malloc(sizeof(hec) * config->num_servers);
     }
     else if (config->num_servers != object_count(servers, ';')) {
         printf("Improper number of HEC servers\n");
@@ -72,7 +100,6 @@ void parse_hec_servers(freeflow_config* config, char* servers) {
     }
 
     config->num_servers = object_count(servers, ';');
-    config->hec_servers = malloc(sizeof(hec) * config->num_servers);
 
     int i;
     for (i = 0; i < config->num_servers; i++) {
@@ -82,10 +109,22 @@ void parse_hec_servers(freeflow_config* config, char* servers) {
             exit(0);
         }
 
-        char *ip   = strtok(server, ":");
+        char *ip = strtok(server, ":");
         char *port = strtok(NULL, ":");
+
+        if (!is_ip_address(ip)) {
+            printf("Invalid HEC server in position %d: %s\n", i+1, ip);
+            exit(0);
+        }
+
+        int port_int = str_to_port(port);
+        if (!port_int) {
+            printf("Invalid HEC port in position %d: %s\n", i+1, port);
+            exit(0);
+        }
+
         strcpy(config->hec_servers[i].ip, ip);
-        strcpy(config->hec_servers[i].port, port);
+        config->hec_servers[i].port = port_int;
     }
     printf("DONE\n");
 }
@@ -94,6 +133,7 @@ void parse_hec_tokens(freeflow_config* config, char* tokens) {
 
     if (config->num_servers == 0) {
         config->num_servers = object_count(tokens, ';');
+        config->hec_servers = malloc(sizeof(hec) * config->num_servers);
     }
     else if (config->num_servers != object_count(tokens, ';')) {
         printf("Improper number of HEC tokens\n");
@@ -103,6 +143,10 @@ void parse_hec_tokens(freeflow_config* config, char* tokens) {
     int i;
     for (i = 0; i < config->num_servers; i++) {
         char* token = strtok_r(tokens, ";", &tokens);
+        if (token == NULL) {
+            printf("Invalid HEC token in position %d: %s\n", i+1, token);
+            exit(0);
+        }
         strcpy(config->hec_servers[i].token, token);
     }
     printf("DONE\n");
