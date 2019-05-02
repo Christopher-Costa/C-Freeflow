@@ -69,14 +69,19 @@ int is_ip_address(char *addr) {
     return 0;
 }
 
-int str_to_port(char *str) {
-    // Since atoi has undefined behavior for invalid input,
-    // first verify that this resembles a integer.
+int is_integer(char *num) {
     int i;
-    for (i = 0; i < strlen(str); i++) {
-        if ((str[i] - '0' < 0) || (str[i] - '0' > 9)) {
+    for (i = 0; i < strlen(num); i++) {
+        if ((num[i] - '0' < 0) || (num[i] - '0' > 9)) {
             return 0;
         }
+    }
+    return 1;
+}
+
+int str_to_port(char *str) {
+    if (!is_integer(str)) {
+        return 0;
     }
     
     // Now, convert the string and make sure the result
@@ -88,7 +93,7 @@ int str_to_port(char *str) {
     return port;
 }
 
-void parse_hec_servers(freeflow_config* config, char* servers) {
+void handle_hec_servers(freeflow_config* config, char* servers) {
 
     if (config->num_servers == 0) {
         config->num_servers = object_count(servers, ';');
@@ -109,11 +114,11 @@ void parse_hec_servers(freeflow_config* config, char* servers) {
             exit(0);
         }
 
-        char *ip = strtok(server, ":");
+        char *addr = strtok(server, ":");
         char *port = strtok(NULL, ":");
 
-        if (!is_ip_address(ip)) {
-            printf("Invalid HEC server in position %d: %s\n", i+1, ip);
+        if (!is_ip_address(addr)) {
+            printf("Invalid HEC server in position %d: %s\n", i+1, addr);
             exit(0);
         }
 
@@ -123,13 +128,13 @@ void parse_hec_servers(freeflow_config* config, char* servers) {
             exit(0);
         }
 
-        strcpy(config->hec_servers[i].ip, ip);
+        strcpy(config->hec_servers[i].addr, addr);
         config->hec_servers[i].port = port_int;
     }
     printf("DONE\n");
 }
 
-void parse_hec_tokens(freeflow_config* config, char* tokens) {
+void handle_hec_tokens(freeflow_config* config, char* tokens) {
 
     if (config->num_servers == 0) {
         config->num_servers = object_count(tokens, ';');
@@ -150,6 +155,44 @@ void parse_hec_tokens(freeflow_config* config, char* tokens) {
         strcpy(config->hec_servers[i].token, token);
     }
     printf("DONE\n");
+}
+
+void handle_bind_addr(freeflow_config* config, char* addr) {
+        if (!is_ip_address(addr)) {
+            printf("Invalid bind address: %s\n", addr);
+            exit(0);
+        }
+
+        strcpy(config->bind_addr, addr);
+}
+
+void handle_bind_port(freeflow_config* config, char* port) {
+    int port_int = str_to_port(port);
+
+    if (!port_int) {
+        printf("Invalid bind port: %s\n", port);
+        exit(0);
+    }
+
+    config->bind_port = port_int;
+}
+
+void handle_threads(freeflow_config* config, char* threads) {
+    if (!is_integer(threads)) {
+        printf("Invalid setting for threads: %s\n", threads);
+        exit(0);
+    }
+
+    config->threads = atoi(threads);
+}
+
+void handle_queue_size(freeflow_config* config, char* queue_size) {
+    if (!is_integer(queue_size)) {
+        printf("Invalid setting for queue_size: %s\n", queue_size);
+        exit(0);
+    }
+
+    config->queue_size = atoi(queue_size);
 }
 
 void read_configuration(freeflow_config* config_obj) {
@@ -176,17 +219,16 @@ void read_configuration(freeflow_config* config_obj) {
             }
 
             if (!strcmp(key, "bind_addr")) {
-                config_obj->bind_addr = malloc(strlen(value) + 1);
-                strcpy(config_obj->bind_addr, value);
+                handle_bind_addr(config_obj, value);
             }
             else if (!strcmp(key, "bind_port")) {
-                config_obj->bind_port = atoi(value);
+                handle_bind_port(config_obj, value);
             }
             else if (!strcmp(key, "threads")) {
-                config_obj->threads = atoi(value);
+                handle_threads(config_obj, value);
             }
             else if (!strcmp(key, "queue_size")) {
-                config_obj->queue_size = atoi(value);
+                handle_queue_size(config_obj, value);
             }
             else if (!strcmp(key, "sourcetype")) {
                 config_obj->sourcetype = malloc(strlen(value) + 1);
@@ -204,10 +246,10 @@ void read_configuration(freeflow_config* config_obj) {
                 config_obj->hec_port = atoi(value);
             }
             else if (!strcmp(key, "hec_servers")) {
-                parse_hec_servers(config_obj, value);
+                handle_hec_servers(config_obj, value);
             }
             else if (!strcmp(key, "hec_tokens")) {
-                parse_hec_tokens(config_obj, value);
+                handle_hec_tokens(config_obj, value);
             }
             else if (!strcmp(key, "log_file")) {
                 config_obj->log_file = malloc(strlen(value) + 1);
