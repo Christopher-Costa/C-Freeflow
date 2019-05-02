@@ -5,51 +5,6 @@
 #include <arpa/inet.h>
 #include "config.h"
 
-int parse_command_args(int argc, char** argv, freeflow_config* config_obj) {
-    int option;
-    int index;
-    opterr = 0;
-
-    while ((option = getopt (argc, argv, "c:")) != -1)
-        switch (option) {
-            case 'c':
-                config_obj->config_file = malloc(strlen(optarg) + 1);
-                strcpy(config_obj->config_file, optarg);
-                break;
-            case '?':
-                if (optopt == 'c') {
-                    fprintf (stderr,
-                             "Option -%c requires an argument.\n",
-                             optopt);
-                }
-                else if (isprint (optopt)) {
-                    fprintf (stderr,
-                             "Unknown option `-%c'.\n",
-                             optopt);
-                }
-                else {
-                    fprintf (stderr,
-                             "Unknown option character `\\x%x'.\n",
-                             optopt);
-                }
-                exit(0);
-            default:
-                abort ();
-        }
-
-    for (index = optind; index < argc; index++) {
-        printf("Non-option argument %s\n", argv[index]);
-        exit(0);
-    }
-
-    if (!config_obj->config_file) {
-        printf("No configuration file provided.\n");
-        exit(0);
-    }
-
-    return 0;
-}
-
 int object_count(char* str, char delim) {
     int num_objects = 1;
     int i;
@@ -93,70 +48,6 @@ int str_to_port(char *str) {
     return port;
 }
 
-void handle_hec_servers(freeflow_config* config, char* servers) {
-
-    if (config->num_servers == 0) {
-        config->num_servers = object_count(servers, ';');
-        config->hec_servers = malloc(sizeof(hec) * config->num_servers);
-    }
-    else if (config->num_servers != object_count(servers, ';')) {
-        printf("Improper number of HEC servers\n");
-        exit(0);
-    }
-
-    config->num_servers = object_count(servers, ';');
-
-    int i;
-    for (i = 0; i < config->num_servers; i++) {
-        char* server = strtok_r(servers, ";", &servers);
-        if (object_count(server, ':') != 2) {
-            printf("Improperly formated HEC server: %s\n", server);
-            exit(0);
-        }
-
-        char *addr = strtok(server, ":");
-        char *port = strtok(NULL, ":");
-
-        if (!is_ip_address(addr)) {
-            printf("Invalid HEC server in position %d: %s\n", i+1, addr);
-            exit(0);
-        }
-
-        int port_int = str_to_port(port);
-        if (!port_int) {
-            printf("Invalid HEC port in position %d: %s\n", i+1, port);
-            exit(0);
-        }
-
-        strcpy(config->hec_servers[i].addr, addr);
-        config->hec_servers[i].port = port_int;
-    }
-    printf("DONE\n");
-}
-
-void handle_hec_tokens(freeflow_config* config, char* tokens) {
-
-    if (config->num_servers == 0) {
-        config->num_servers = object_count(tokens, ';');
-        config->hec_servers = malloc(sizeof(hec) * config->num_servers);
-    }
-    else if (config->num_servers != object_count(tokens, ';')) {
-        printf("Improper number of HEC tokens\n");
-        exit(0);
-    }
-
-    int i;
-    for (i = 0; i < config->num_servers; i++) {
-        char* token = strtok_r(tokens, ";", &tokens);
-        if (token == NULL) {
-            printf("Invalid HEC token in position %d: %s\n", i+1, token);
-            exit(0);
-        }
-        strcpy(config->hec_servers[i].token, token);
-    }
-    printf("DONE\n");
-}
-
 void setting_error(char *setting_desc, char* value) {
     printf("Invalid setting for %s: %s\n", setting_desc, value);
     exit(0);
@@ -186,6 +77,50 @@ void handle_int_setting(int *setting, char* value, char* setting_desc, int min, 
 
 void handle_port_setting(int *setting, char* value, char* setting_desc) {
     handle_int_setting(setting, value, setting_desc, 1, 65535);
+}
+
+void initialize_hec_servers(freeflow_config* config, char *value) {
+    if (config->num_servers == 0) {
+        config->num_servers = object_count(value, ';');
+        config->hec_servers = malloc(sizeof(hec) * config->num_servers);
+    }
+    else if (config->num_servers != object_count(value, ';')) {
+        printf("Invalid number of items in list: %s\n", value);
+        exit(0);
+    }
+}
+
+void handle_hec_servers(freeflow_config* config, char* servers) {
+    initialize_hec_servers(config, servers);
+
+    int i;
+    for (i = 0; i < config->num_servers; i++) {
+        char* server = strtok_r(servers, ";", &servers);
+        if ((server == NULL) || (object_count(server, ':') != 2)) {
+            setting_error("HEC server", server);
+        }
+
+        char *addr = strtok(server, ":");
+        char *port = strtok(NULL, ":");
+
+        handle_addr_setting(config->hec_servers[i].addr, addr, "HEC server IP address");
+        handle_port_setting(&config->hec_servers[i].port, port, "HEC server port");
+    }
+    printf("DONE\n");
+}
+
+void handle_hec_tokens(freeflow_config* config, char* tokens) {
+    initialize_hec_servers(config, tokens);
+
+    int i;
+    for (i = 0; i < config->num_servers; i++) {
+        char* token = strtok_r(tokens, ";", &tokens);
+        if (token == NULL) {
+            setting_error("HEC token", token);
+        }
+        strcpy(config->hec_servers[i].token, token);
+    }
+    printf("DONE\n");
 }
 
 void read_configuration(freeflow_config* config) {
@@ -256,5 +191,53 @@ void read_configuration(freeflow_config* config) {
     printf("XXXX %s\n", config->bind_addr);
     printf("XXXX %d\n", config->bind_port);
     printf("XXXX %d\n", config->threads);
+    printf("XXXX %s\n", config->hec_servers[0].addr);
+    printf("XXXX %d\n", config->hec_servers[0].port);
+    printf("XXXX %d\n", config->num_servers);
     fclose(c);
+}
+
+int parse_command_args(int argc, char** argv, freeflow_config* config_obj) {
+    int option;
+    int index;
+    opterr = 0;
+
+    while ((option = getopt (argc, argv, "c:")) != -1)
+        switch (option) {
+            case 'c':
+                config_obj->config_file = malloc(strlen(optarg) + 1);
+                strcpy(config_obj->config_file, optarg);
+                break;
+            case '?':
+                if (optopt == 'c') {
+                    fprintf (stderr,
+                             "Option -%c requires an argument.\n",
+                             optopt);
+                }
+                else if (isprint (optopt)) {
+                    fprintf (stderr,
+                             "Unknown option `-%c'.\n",
+                             optopt);
+                }
+                else {
+                    fprintf (stderr,
+                             "Unknown option character `\\x%x'.\n",
+                             optopt);
+                }
+                exit(0);
+            default:
+                abort ();
+        }
+
+    for (index = optind; index < argc; index++) {
+        printf("Non-option argument %s\n", argv[index]);
+        exit(0);
+    }
+
+    if (!config_obj->config_file) {
+        printf("No configuration file provided.\n");
+        exit(0);
+    }
+
+    return 0;
 }
