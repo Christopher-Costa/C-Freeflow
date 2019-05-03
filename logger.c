@@ -76,13 +76,12 @@ void start_logger(char *log_file, int queue_id) {
     logbuf l;
     while(keep_logging || queue_length(queue_id)) {
         int bytes = msgrcv(queue_id, &l, sizeof(logbuf), 1, IPC_NOWAIT);
-        if (bytes > 0) {
-            write_log(fd, l);
-        }
-        else {
-            // If there were no messages, just wait 0.01s and try again.
+        if (bytes <= 0) {
             usleep(10000);
-        }        
+            continue;
+        }
+           
+        write_log(fd, l);
     }
 
     delete_queue(queue_id);

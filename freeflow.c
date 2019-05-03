@@ -12,7 +12,7 @@
 #include "worker.h"
 
 // This is global by design, so a signal handler can access it.
-int keep_working = 1;
+int keep_listening = 1;
 
 int receive_packets(int log_queue, freeflow_config *config) {
     char packet[PACKET_BUFFER_SIZE];
@@ -26,7 +26,7 @@ int receive_packets(int log_queue, freeflow_config *config) {
     message.mtype = 2;
 
     //keep listening for data
-    while(keep_working) {
+    while(keep_listening) {
         int bytes_recv;
         bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, 
                               (struct sockaddr*)sender, &socket_len);
@@ -46,22 +46,26 @@ int receive_packets(int log_queue, freeflow_config *config) {
 }
 
 void handle_signal(int sig) {
-    keep_working = 0;
+    keep_listening = 0;
 }
 
 void clean_up(freeflow_config* config, pid_t workers[], pid_t logger_pid, int log_queue) {
     char log_message[128];
 
-    int i;
+    int i, status;
     for (i = 0; i < config->threads; ++i) {
         sprintf(log_message, "Terminating Splunk worker #%d [PID %d].", i, workers[i]);
         log_info(log_message, log_queue);
         kill(workers[i], SIGTERM);
+        waitpid(workers[i], &status, 0);
     }
 
     sprintf(log_message, "Terminating logging process [PID %d].", logger_pid);
     log_info(log_message, log_queue);
     kill(logger_pid, SIGTERM);
+    waitpid(logger_pid, &status, 0);
+
+    free(config);
 }
 
 /*
@@ -101,5 +105,4 @@ int main(int argc, char** argv) {
     receive_packets(log_queue, config);
 
     clean_up(config, workers, logger_pid, log_queue);
-    free(config);
 }

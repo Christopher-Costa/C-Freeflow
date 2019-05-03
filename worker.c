@@ -3,12 +3,15 @@
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
 #include <arpa/inet.h>   /* Provides: inet_ntoa */
+#include <sys/msg.h>     /* Provides: IPC_NOWAIT */
 #include <signal.h>
 #include "freeflow.h"
 #include "netflow.h"
 #include "config.h"
 #include "socket.h"
 #include "queue.h"
+
+int keep_working = 1;
 
 int hec_header(hec* server, int content_length, char* header) {
     char h[500];
@@ -129,11 +132,19 @@ int response_code(char* response) {
     return(atoi(token));
 }
 
-void handle_child_signal(int sig) {
-    exit(0);
+void handle_worker_sigterm(int sig) {
+    printf("XXXXX TERM\n");
+    keep_working = 0;
+}
+
+void handle_worker_sigint(int sig) {
+    printf("XXXXX INT\n");
 }
 
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
+    signal(SIGTERM, handle_worker_sigterm);
+    signal(SIGINT, handle_worker_sigint);
+
     int socket_id = connect_socket(worker_num, config, log_queue);
 
     if (socket_id < 0) {
@@ -143,8 +154,6 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     char *payload = malloc(PACKET_BUFFER_SIZE);
     char *dummy = malloc(PACKET_BUFFER_SIZE);
     char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
-
-    signal(SIGTERM, handle_child_signal);
 
     int instance = worker_num % config->num_servers;
 
@@ -169,8 +178,13 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     set_queue_size(packet_queue, config->queue_size);
 
     packet_buffer *packet = malloc(sizeof(packet_buffer));
-    while(1) {
-        msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
+    while(keep_working) {
+        int bytes = msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, IPC_NOWAIT);
+        if (bytes <= 0) {
+            usleep(1000);
+            continue;
+        }
+
         char results = parse_packet(packet, payload, config, instance, log_queue);
         
         int bytes_sent = write(socket_id, payload, strlen(payload));
