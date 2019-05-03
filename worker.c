@@ -133,13 +133,10 @@ int response_code(char* response) {
 }
 
 void handle_worker_sigterm(int sig) {
-    printf("XXXXX TERM\n");
     keep_working = 0;
 }
 
-void handle_worker_sigint(int sig) {
-    printf("XXXXX INT\n");
-}
+void handle_worker_sigint(int sig) {}
 
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGTERM, handle_worker_sigterm);

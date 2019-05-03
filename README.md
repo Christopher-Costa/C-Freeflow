@@ -1,1 +1,1 @@
-gcc freeflow.c logger.c queue.c config.c -o freeflow.out -lrt
+gcc freeflow.c logger.c queue.c config.c socket.c worker.c -o freeflow.out -lrt
