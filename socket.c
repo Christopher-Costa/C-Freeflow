@@ -3,12 +3,14 @@
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
 #include <signal.h>
+#include <errno.h>
 #include <netinet/tcp.h>
 #include "config.h"
 
 int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
+    char log_message[128];
     int socket_id;
 
     if((socket_id = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -27,18 +29,30 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
  
     addr.sin_family = AF_INET;
 
-    host = gethostbyname(config->hec_server);
+    int   hec_instance = worker_num % config->num_servers;
+    int   hec_port = config->hec_server[hec_instance].port;
+    char* hec_addr = config->hec_server[hec_instance].addr;
+
+    host = gethostbyname(hec_addr);
     if(host == NULL) {
-        char log_message[128];
-        sprintf("%s unknown host.", config->hec_server);
+        sprintf(log_message, "%s unknown host.", hec_addr);
         log_error(log_message, log_queue);
         return -1;
     }
 
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
-    addr.sin_port = htons(config->hec_port);
-    connect(socket_id, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)); 
+    addr.sin_port = htons(hec_port);
+    if (connect(socket_id, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)) < 0) {
+        sprintf(log_message, "Couldn't connect to %s:%d: %s.", hec_addr, hec_port,
+                                                               strerror(errno));
+        log_error(log_message, log_queue);
+        return(-1);
+    } 
 
+    sprintf(log_message, "Worker #%d connected to HEC %s:%d", worker_num
+                                                            , hec_addr
+                                                            , hec_port);
+    log_info(log_message, log_queue);
     return(socket_id);
 }
 

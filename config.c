@@ -82,7 +82,7 @@ void handle_port_setting(int *setting, char* value, char* setting_desc) {
 void initialize_hec_servers(freeflow_config* config, char *value) {
     if (config->num_servers == 0) {
         config->num_servers = object_count(value, ';');
-        config->hec_servers = malloc(sizeof(hec) * config->num_servers);
+        config->hec_server = malloc(sizeof(hec) * config->num_servers);
     }
     else if (config->num_servers != object_count(value, ';')) {
         printf("Invalid number of items in list: %s\n", value);
@@ -103,10 +103,9 @@ void handle_hec_servers(freeflow_config* config, char* servers) {
         char *addr = strtok(server, ":");
         char *port = strtok(NULL, ":");
 
-        handle_addr_setting(config->hec_servers[i].addr, addr, "HEC server IP address");
-        handle_port_setting(&config->hec_servers[i].port, port, "HEC server port");
+        handle_addr_setting(config->hec_server[i].addr, addr, "HEC server IP address");
+        handle_port_setting(&config->hec_server[i].port, port, "HEC server port");
     }
-    printf("DONE\n");
 }
 
 void handle_hec_tokens(freeflow_config* config, char* tokens) {
@@ -118,9 +117,8 @@ void handle_hec_tokens(freeflow_config* config, char* tokens) {
         if (token == NULL) {
             setting_error("HEC token", token);
         }
-        strcpy(config->hec_servers[i].token, token);
+        strcpy(config->hec_server[i].token, token);
     }
-    printf("DONE\n");
 }
 
 void read_configuration(freeflow_config* config) {
@@ -162,21 +160,10 @@ void read_configuration(freeflow_config* config) {
                 config->sourcetype = malloc(strlen(value) + 1);
                 strcpy(config->sourcetype, value);
             }
-            else if (!strcmp(key, "hec_token")) {
-                config->hec_token = malloc(strlen(value) + 1);
-                strcpy(config->hec_token, value);
-            }
             else if (!strcmp(key, "hec_server")) {
-                config->hec_server = malloc(strlen(value) + 1);
-                strcpy(config->hec_server, value);
-            }
-            else if (!strcmp(key, "hec_port")) {
-                config->hec_port = atoi(value);
-            }
-            else if (!strcmp(key, "hec_servers")) {
                 handle_hec_servers(config, value);
             }
-            else if (!strcmp(key, "hec_tokens")) {
+            else if (!strcmp(key, "hec_token")) {
                 handle_hec_tokens(config, value);
             }
             else if (!strcmp(key, "log_file")) {
@@ -186,14 +173,6 @@ void read_configuration(freeflow_config* config) {
         }
     }
 
-    printf("XXXX %d\n", config->threads);
-    printf("XXXX %d\n", config->queue_size);
-    printf("XXXX %s\n", config->bind_addr);
-    printf("XXXX %d\n", config->bind_port);
-    printf("XXXX %d\n", config->threads);
-    printf("XXXX %s\n", config->hec_servers[0].addr);
-    printf("XXXX %d\n", config->hec_servers[0].port);
-    printf("XXXX %d\n", config->num_servers);
     fclose(c);
 }
 

@@ -10,7 +10,7 @@
 #include "socket.h"
 #include "queue.h"
 
-int hec_header(freeflow_config* config, int content_length, char* header) {
+int hec_header(hec* server, int content_length, char* header) {
     char h[500];
 
     strcpy(h, "POST /services/collector HTTP/1.1\r\n");        
@@ -20,18 +20,16 @@ int hec_header(freeflow_config* config, int content_length, char* header) {
     strcat(h, "Authorization: Splunk %s\r\n");
     strcat(h, "Content-Length: %d\r\n\r\n"); 
 
-    sprintf(header, h, config->hec_server, config->hec_port, 
-                       config->hec_token, content_length);
-
+    sprintf(header, h, server->addr, server->port, server->token, content_length); 
 }
 
-int empty_payload(char* payload, freeflow_config* config) {
-    hec_header(config, 0, payload);
+int empty_payload(char* payload, hec* server) {
+    hec_header(server, 0, payload);
     return 0;
 }
 
-int parse_packet(packet_buffer* packet, char* payload, 
-                 freeflow_config* config, int log_queue) {
+int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
+                 int server_instance, int log_queue) {
 
     // Make sure the size of the packet is sane for netflow.
     if ( (packet->packet_len - 24) % 48 > 0 ){
@@ -118,7 +116,7 @@ int parse_packet(packet_buffer* packet, char* payload,
         strcat(splunk_payload, record);
     }
 
-    hec_header(config, (int)strlen(splunk_payload), payload);
+    hec_header(&config->hec_server[server_instance], (int)strlen(splunk_payload), payload);
     strcat(payload, splunk_payload);
     return 0;
 }
@@ -137,15 +135,22 @@ void handle_child_signal(int sig) {
 
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     int socket_id = connect_socket(worker_num, config, log_queue);
+
+    if (socket_id < 0) {
+        kill(getppid(), SIGTERM);
+    }
+
     char *payload = malloc(PACKET_BUFFER_SIZE);
     char *dummy = malloc(PACKET_BUFFER_SIZE);
     char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
 
     signal(SIGTERM, handle_child_signal);
 
+    int instance = worker_num % config->num_servers;
+
     // Send an empty HEC message to prevent Splunk from closing the connection
     // within 40s.  Use the opportunity to validate the authentication token.
-    empty_payload(dummy, config);
+    empty_payload(dummy, &config->hec_server[instance]);
     write(socket_id, dummy, strlen(dummy));
     read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
     free(dummy);
@@ -166,7 +171,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(1) {
         msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, 0);
-        char results = parse_packet(packet, payload, config, log_queue);
+        char results = parse_packet(packet, payload, config, instance, log_queue);
         
         int bytes_sent = write(socket_id, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {

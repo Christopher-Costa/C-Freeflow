@@ -90,12 +90,11 @@ int main(int argc, char** argv) {
     int workers[config->threads];
     for (i = 0; i < config->threads; ++i) {
         if ((workers[i] = fork()) == 0) {
-            splunk_worker(i + 1, config, log_queue);
+            splunk_worker(i, config, log_queue);
             exit(0);
         }
     }
 
-//    signal(SIGCHLD, SIG_IGN);
     signal(SIGTERM, handle_signal);
     signal(SIGINT, handle_signal);
 

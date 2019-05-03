@@ -10,10 +10,7 @@ typedef struct freeflow_config {
     int threads;
     int queue_size;
     char *sourcetype;
-    char *hec_token;
-    char *hec_tokens;
-    char *hec_server;
-    hec* hec_servers;
+    hec* hec_server;
     int num_servers;
     int hec_port;
     char *log_file;
