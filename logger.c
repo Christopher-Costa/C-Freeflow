@@ -69,7 +69,7 @@ void start_logger(char *log_file, int queue_id) {
         exit(0);
     }
 
-    char log_message[128];
+    char log_message[LOG_MESSAGE_SIZE];
     sprintf(log_message, "Logging process [PID %d] started.", getpid());
     log_info(log_message, queue_id);
 

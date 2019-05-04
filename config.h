@@ -1,11 +1,16 @@
+#define CONFIG_KEY_SIZE    128
+#define CONFIG_VALUE_SIZE  1024
+#define IPV4_ADDR_SIZE     16
+#define HEC_TOKEN_SIZE     128
+
 typedef struct hec {
-    char addr[16];
+    char addr[IPV4_ADDR_SIZE];
     int port;
-    char token[128];
+    char token[HEC_TOKEN_SIZE];
 } hec;
 
 typedef struct freeflow_config {
-    char bind_addr[16];
+    char bind_addr[IPV4_ADDR_SIZE];
     int bind_port;
     int threads;
     int queue_size;

@@ -10,9 +10,7 @@ int queue_length(int queue_id) {
 
 int create_queue(char* filename, int id) {
     key_t key = ftok(filename, id);
-    int queue_id = msgget(key, 0666 | IPC_CREAT);
-
-    return(queue_id);
+    return msgget(key, 0666 | IPC_CREAT);
 }
 
 int delete_queue(int queue_id) {

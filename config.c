@@ -130,8 +130,8 @@ void read_configuration(freeflow_config* config) {
         exit(0);
     }
 
-    char key[128];
-    char value[128];
+    char key[CONFIG_KEY_SIZE];
+    char value[CONFIG_VALUE_SIZE];
 
     while (fgets(line, sizeof line, c) != NULL ){
         int result = sscanf(line,"%[^= \t\r\n] = %[^= \t\r\n]", key, value);

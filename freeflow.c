@@ -11,15 +11,66 @@
 #include "queue.h"
 #include "worker.h"
 
-// This is global by design, so a signal handler can access it.
-int keep_listening = 1;
+static int keep_listening = 1;
 
-int receive_packets(int log_queue, freeflow_config *config) {
+static void handle_signal(int sig);
+static int receive_packets(int log_queue, freeflow_config *config);
+static void handle_signal(int sig);
+static void clean_up(freeflow_config* config, pid_t workers[], pid_t logger_pid, int log_queue);
+
+/*
+ * Function: handle_signal
+ *
+ * Handle SIGINT and SIGTERM signals by setting toggling the 'keep_listening'
+ * variable.  This variable controls the main while loop, and will allow the
+ * program to end gracefully and ensure everything is cleaned up properly.
+ *
+ * Inputs:   int sig        The signal being passed.  Currently unused.
+ * Outputs:  <none>
+ */
+static void handle_signal(int sig) {
+    keep_listening = 0;
+}
+
+/*
+ * Function: receive_packets
+ *
+ * Bind a receive UDP socket and continue pulling packets off the wire until
+ * the program is terminated.  Packets are placed into an IPC message queue
+ * for one of the worker processes to handle.
+ *
+ * Inputs:  int             log_queue    The signal being passed.
+ *          freeflow_config *config      Pointer to the configuration object. 
+ * 
+ * Return:  0  Success
+ *          1  Couldn't bind to socket
+ *          2  Couldn't create IPC packet queue
+ */
+static int receive_packets(int log_queue, freeflow_config *config) {
+    char log_message[LOG_MESSAGE_SIZE];
     char packet[PACKET_BUFFER_SIZE];
-    int socket_id = bind_socket(log_queue, config);
-    int packet_queue = create_queue(config->config_file, LOG_QUEUE);
 
-    struct sockaddr_in *sender = malloc(sizeof(struct sockaddr));;
+    /* The bind_socket function performs its own error handling and will 
+     * only return a valid socket_id, or send a signal otherwise.
+     */
+    int socket_id;
+    if ((socket_id = bind_socket(log_queue, config)) < 0) {
+        sprintf(log_message, "bind_socket returned error: %d.", socket_id);
+        log_error(log_message, log_queue);
+        return 1;
+    }
+        
+    int packet_queue;
+    if ((packet_queue = create_queue(config->config_file, PACKET_QUEUE)) < 0) {
+        log_error("Unable to create IPC queue for packets.", log_queue);
+        return 2;
+    }
+
+    struct sockaddr_in *sender;
+    if ((sender = malloc(sizeof(struct sockaddr))) == NULL) {
+        log_error("Unable to allocate memor for socket structure.", log_queue);
+        return 3;
+    }
     int socket_len = sizeof(*sender);
 
     packet_buffer message;
@@ -45,12 +96,8 @@ int receive_packets(int log_queue, freeflow_config *config) {
     return 0;
 }
 
-void handle_signal(int sig) {
-    keep_listening = 0;
-}
-
-void clean_up(freeflow_config* config, pid_t workers[], pid_t logger_pid, int log_queue) {
-    char log_message[128];
+static void clean_up(freeflow_config* config, pid_t workers[], pid_t logger_pid, int log_queue) {
+    char log_message[LOG_MESSAGE_SIZE];
 
     int i, status;
     for (i = 0; i < config->threads; ++i) {
@@ -83,7 +130,7 @@ int main(int argc, char** argv) {
     read_configuration(config);
 
     int i;
-    int log_queue = create_queue(config->config_file, PACKET_QUEUE);
+    int log_queue = create_queue(config->config_file, LOG_QUEUE);
 
     pid_t logger_pid;
     if ((logger_pid = fork()) == 0) {

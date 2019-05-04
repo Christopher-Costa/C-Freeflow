@@ -5,6 +5,7 @@
  *        need to be increased also.  1500 bytes is sufficient for a standard 
  *        Cisco netflow v5 datagram.
  */
+#define LOG_MESSAGE_SIZE 256
 #define PACKET_BUFFER_SIZE 1500
 
 typedef struct packet_buffer {

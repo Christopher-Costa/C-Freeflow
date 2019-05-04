@@ -34,6 +34,8 @@ int empty_payload(char* payload, hec* server) {
 int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
                  int server_instance, int log_queue) {
 
+    char log_message[LOG_MESSAGE_SIZE];
+
     // Make sure the size of the packet is sane for netflow.
     if ( (packet->packet_len - 24) % 48 > 0 ){
         log_warning("Invalid netflow packet length", log_queue);
@@ -44,7 +46,7 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
-        char log_message[128];
+        char log_message[LOG_MESSAGE_SIZE];
         sprintf(log_message, "Packet received with invalid version: %d", ntohs(h->version));
         log_warning(log_message, log_queue);
         return 1;
@@ -54,7 +56,6 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
 
     // Make sure the number of records is sane
     if (num_records != (packet->packet_len - 24) / 48){
-        char log_message[128];
         sprintf(log_message, "Invalid number of records: %d", num_records);
         log_warning(log_message, log_queue);
         return 1;
@@ -79,13 +80,13 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
         struct in_addr d = {r->dstaddr};
         struct in_addr n = {r->nexthop};
 
-        char srcaddr[16];
+        char srcaddr[IPV4_ADDR_SIZE];
         strcpy(srcaddr, inet_ntoa(s));
 
-        char dstaddr[16];
+        char dstaddr[IPV4_ADDR_SIZE];
         strcpy(dstaddr, inet_ntoa(d));
 
-        char nexthop[16];
+        char nexthop[IPV4_ADDR_SIZE];
         strcpy(nexthop, inet_ntoa(n));
 
         short input = ntohs(r->input);
@@ -142,6 +143,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGTERM, handle_worker_sigterm);
     signal(SIGINT, handle_worker_sigint);
 
+    char log_message[LOG_MESSAGE_SIZE];
     int socket_id = connect_socket(worker_num, config, log_queue);
 
     if (socket_id < 0) {
@@ -161,17 +163,15 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
     free(dummy);
     if (response_code(recv_buffer) == 403) {
-        char log_message[128];
         sprintf(log_message, "Splunk worker #%d unable to authenticate with Splunk.", worker_num);
         log_error(log_message, log_queue);
         kill(getppid(), SIGTERM);
     };
 
-    char log_message[128];
     sprintf(log_message, "Splunk worker #%d [PID %d] started.", worker_num, getpid());
     log_info(log_message, log_queue);
 
-    int packet_queue = create_queue(config->config_file, LOG_QUEUE);
+    int packet_queue = create_queue(config->config_file, PACKET_QUEUE);
     set_queue_size(packet_queue, config->queue_size);
 
     packet_buffer *packet = malloc(sizeof(packet_buffer));

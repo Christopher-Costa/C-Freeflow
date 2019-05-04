@@ -5,12 +5,13 @@
 #include <signal.h>
 #include <errno.h>
 #include <netinet/tcp.h>
+#include "freeflow.h"
 #include "config.h"
 
 int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
-    char log_message[128];
+    char log_message[LOG_MESSAGE_SIZE];
     int socket_id;
 
     if((socket_id = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
@@ -59,14 +60,14 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
 int bind_socket(int log_queue, freeflow_config *config) {
     struct sockaddr_in si_me;
     struct sockaddr_in si_other;
-    char log_message[128];
+    char log_message[LOG_MESSAGE_SIZE];
     
     int socket_id;
     
     //create a UDP socket
     if ((socket_id = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         log_error("Couldn't open UDP socket for netflow.", log_queue);
-        kill(getpid(), SIGTERM);
+        return -1;
     }
 
     // Set the socket to recv timeout after 1s
@@ -88,7 +89,8 @@ int bind_socket(int log_queue, freeflow_config *config) {
         sprintf(log_message, "Couldn't bind local socket %s:%d.", config->bind_addr, 
                                                                   config->bind_port);
         log_error(log_message, log_queue);
-        kill(getpid(), SIGTERM);
+        //kill(getpid(), SIGTERM);
+        return -2;
     }
 
     sprintf(log_message, "Socket bound and listening on %s:%d.", config->bind_addr,
