@@ -1,7 +1,8 @@
 #define CONFIG_KEY_SIZE    128
 #define CONFIG_VALUE_SIZE  1024
-#define IPV4_ADDR_SIZE     16
+#define CONFIG_LINE_SIZE   1024
 #define HEC_TOKEN_SIZE     128
+#define IPV4_ADDR_SIZE     16
 
 typedef struct hec {
     char addr[IPV4_ADDR_SIZE];
@@ -22,6 +23,5 @@ typedef struct freeflow_config {
     char *config_file;
 } freeflow_config;
 
-int parse_command_args(int argc, char** argv, freeflow_config* config_obj);
+void parse_command_args(int argc, char** argv, freeflow_config* config_obj);
 void read_configuration(freeflow_config* config_obj);
-
