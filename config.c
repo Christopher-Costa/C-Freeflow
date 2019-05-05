@@ -8,9 +8,13 @@
 static int token_count(char* str, char delim);
 static int is_ip_address(char *addr);
 static int is_integer(char *num);
+
 static void setting_error(char *setting_desc, char* value);
+static void setting_empty(char* setting_desc);
 
 static void initialize_hec_servers(freeflow_config* config, char *value);
+static void initialize_configuration(freeflow_config* config);
+static void verify_configuration(freeflow_config* config);
 
 static void handle_addr_setting(char *setting, char *value, char *setting_desc);
 static void handle_int_setting(int *setting, char* value, char* setting_desc, int min, int max);
@@ -107,6 +111,21 @@ static void setting_error(char *setting_desc, char* value) {
 }
 
 /*
+ * Function: setting_empty
+ * 
+ * Called when no value is provided for a configuration setting.  Print
+ * a message to STDOUT and exit the program.
+ *
+ * Inputs:  char* setting_desc    Text describing the error
+ * 
+ * Return:  None
+ */ 
+static void setting_empty(char* setting_desc) {
+    printf("No configuration provided for %s\n", setting_desc);
+    exit(0);
+}
+
+/*
  * Function: handle_addr_setting
  *
  * Used to validate and set a configuration setting intended to be an
@@ -187,9 +206,18 @@ static void handle_port_setting(int *setting, char* value, char* setting_desc) {
  * Return:  None
  */
 static void initialize_hec_servers(freeflow_config* config, char *value) {
-    if (config->num_servers == 0) {
+    if (config->num_servers <= 0) {
         config->num_servers = token_count(value, ';');
-        config->hec_server = malloc(sizeof(hec) * config->num_servers);
+
+        int hec_size = sizeof(hec) * config->num_servers;
+        config->hec_server = malloc(hec_size);
+        
+        int i;
+        for (i = 0; i < config->num_servers; i++) {
+            memset(config->hec_server[i].addr, 0, sizeof(config->hec_server[i].addr));
+            memset(config->hec_server[i].token, 0, sizeof(config->hec_server[i].token));
+            config->hec_server[i].port = -1;
+        }
     }
     else if (config->num_servers != token_count(value, ';')) {
         printf("Invalid number of items in list: %s\n", value);
@@ -253,6 +281,61 @@ static void handle_hec_tokens(freeflow_config* config, char* tokens) {
 }
 
 /*
+ * Function: initialize_configuration
+ *
+ * Initializes the members of the config object to invalid settings, so as to
+ * be able to check whether valid settings are provided in the config file.
+ *
+ * Inputs:  freeflow_config* config    Pointer to configuration object
+ *
+ * Return:  None
+ */
+static void initialize_configuration(freeflow_config* config) {
+    memset(&config->bind_addr, 0, sizeof(config->bind_addr));
+    config->bind_port = -1;
+    config->threads = -1;
+    config->queue_size = -1;
+    config->num_servers = -1;
+    memset(&config->sourcetype, 0, sizeof(config->sourcetype));
+    memset(&config->log_file, 0, sizeof(config->log_file));
+}
+
+/*
+ * Function: verify_configuration
+ *
+ * Checks all mandatory configuration settings to make sure valid settings have
+ * been supplied.  Generates an error for improperly invalid settings.
+ *
+ * Inputs:  freeflow_config* config    Pointer to configuration object
+ *
+ * Return:  None
+ */
+static void verify_configuration(freeflow_config* config) {
+
+    if (!strcmp(config->bind_addr, ""))  setting_empty("bind_addr");
+    if (config->bind_port  < 0)          setting_empty("bind_port");
+    if (config->threads    < 0)          setting_empty("threads");
+    if (config->queue_size < 0)          setting_empty("queue_size");
+    if (!strcmp(config->sourcetype, "")) setting_empty("sourcetype");
+    if (!strcmp(config->log_file, ""))   setting_empty("log_file");
+    if (config->num_servers < 0) {
+        setting_empty("hec_server and hec_token");
+    }
+    else {
+        int i;
+        for (i = 0; i < config->num_servers; i++) {
+            if (!strcmp(config->hec_server[i].addr, "")) { 
+                setting_empty("hec_server");
+            }
+
+            if (!strcmp(config->hec_server[i].token, "")) {
+                setting_empty("hec_token");
+            }
+        }        
+    }
+}
+
+/*
  * Function: read_configuration
  *
  * Open and recurse through the configuration file and handle all the
@@ -274,6 +357,7 @@ void read_configuration(freeflow_config* config) {
     char key[CONFIG_KEY_SIZE];
     char value[CONFIG_VALUE_SIZE];
 
+    initialize_configuration(config);
     while (fgets(line, sizeof line, c) != NULL ){
         int result = sscanf(line,"%[^= \t\r\n] = %[^= \t\r\n]", key, value);
         if (result != 2) {
@@ -298,7 +382,6 @@ void read_configuration(freeflow_config* config) {
                 handle_int_setting(&config->queue_size, value, key, 1, 0);
             }
             else if (!strcmp(key, "sourcetype")) {
-                config->sourcetype = malloc(strlen(value) + 1);
                 strcpy(config->sourcetype, value);
             }
             else if (!strcmp(key, "hec_server")) {
@@ -308,14 +391,14 @@ void read_configuration(freeflow_config* config) {
                 handle_hec_tokens(config, value);
             }
             else if (!strcmp(key, "log_file")) {
-                config->log_file = malloc(strlen(value) + 1);
                 strcpy(config->log_file, value);
             }
         }
     }
-
+    verify_configuration(config);
     fclose(c);
 }
+
 
 /*
  * Function: parse_command_args
@@ -337,7 +420,7 @@ void parse_command_args(int argc, char** argv, freeflow_config* config) {
     while ((option = getopt (argc, argv, "c:")) != -1)
         switch (option) {
             case 'c':
-                config->config_file = malloc(strlen(optarg) + 1);
+                //config->config_file = malloc(strlen(optarg) + 1);
                 strcpy(config->config_file, optarg);
                 break;
             case '?':
@@ -360,11 +443,6 @@ void parse_command_args(int argc, char** argv, freeflow_config* config) {
             default:
                 abort ();
         }
-
-    for (index = optind; index < argc; index++) {
-        printf("Non-option argument %s\n", argv[index]);
-        exit(0);
-    }
 
     if (!config->config_file) {
         printf("No configuration file provided.\n");

@@ -2,6 +2,9 @@
 #define CONFIG_VALUE_SIZE  1024
 #define CONFIG_LINE_SIZE   1024
 #define HEC_TOKEN_SIZE     128
+#define SOURCETYPE_SIZE    256
+#define LOG_FILE_SIZE      1024
+#define CONFIG_FILE_SIZE   1024
 #define IPV4_ADDR_SIZE     16
 
 typedef struct hec {
@@ -15,12 +18,12 @@ typedef struct freeflow_config {
     int bind_port;
     int threads;
     int queue_size;
-    char *sourcetype;
+    char sourcetype[SOURCETYPE_SIZE];
     hec* hec_server;
     int num_servers;
     int hec_port;
-    char *log_file;
-    char *config_file;
+    char log_file[LOG_FILE_SIZE];
+    char config_file[CONFIG_FILE_SIZE];
 } freeflow_config;
 
 void parse_command_args(int argc, char** argv, freeflow_config* config_obj);

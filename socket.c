@@ -36,7 +36,7 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
 
     host = gethostbyname(hec_addr);
     if(host == NULL) {
-        sprintf(log_message, "%s unknown host.", hec_addr);
+        sprintf(log_message, "'%s': unknown host.", hec_addr);
         log_error(log_message, log_queue);
         return -1;
     }
