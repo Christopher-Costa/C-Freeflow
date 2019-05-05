@@ -53,7 +53,7 @@ static int receive_packets(int log_queue, freeflow_config *config) {
     char packet[PACKET_BUFFER_SIZE];
 
     int socket_id;
-    if ((socket_id = bind_socket(log_queue, config)) < 0) {
+    if ((socket_id = bind_socket(config, log_queue)) < 0) {
         sprintf(log_message, "bind_socket returned error: %d.", socket_id);
         log_error(log_message, log_queue);
         return -1;

@@ -207,6 +207,8 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 
         read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
     }
+    
+    close(socket_id);
     free(packet);
     free(payload);
     free(recv_buffer);
