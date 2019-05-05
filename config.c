@@ -57,8 +57,8 @@ static int token_count(char* str, char delim) {
  *
  * Inputs:   char* addr      The string to check
  *
- * Return:  1   String is a valid IPv4 address
- *          0   String is not a valid IPv4 address
+ * Returns:  1   String is a valid IPv4 address
+ *           0   String is not a valid IPv4 address
  */
 static int is_ip_address(char *addr) {
     unsigned long ip = 0;
@@ -76,10 +76,10 @@ static int is_ip_address(char *addr) {
  * function is to provide error checking that the standard 'atoi'
  * function does not.
  *
- * Inputs:  char* num       The string to check
+ * Inputs:   char* num       The string to check
  *
- * Return:  1   String is a positive integer
- *          0   String is not a positive integer
+ * Returns:  1   String is a positive integer
+ *           0   String is not a positive integer
  */
 static int is_integer(char *num) {
     int i;
@@ -100,10 +100,10 @@ static int is_integer(char *num) {
  * Called when an error is detected in the configuration.  Print
  * a message to STDOUT and exit the program.
  *
- * Inputs:  char* setting_desc    Text describing the error
- *          char* value           The config value causing the error
+ * Inputs:   char* setting_desc    Text describing the error
+ *           char* value           The config value causing the error
  * 
- * Return:  None
+ * Returns:  None
  */ 
 static void setting_error(char *setting_desc, char* value) {
     printf("Invalid setting for %s: %s\n", setting_desc, value);
@@ -116,9 +116,9 @@ static void setting_error(char *setting_desc, char* value) {
  * Called when no value is provided for a configuration setting.  Print
  * a message to STDOUT and exit the program.
  *
- * Inputs:  char* setting_desc    Text describing the error
+ * Inputs:   char* setting_desc    Text describing the error
  * 
- * Return:  None
+ * Returns:  None
  */ 
 static void setting_empty(char* setting_desc) {
     printf("No configuration provided for %s\n", setting_desc);
@@ -132,11 +132,11 @@ static void setting_empty(char* setting_desc) {
  * IP address.  Update the configuration object (passed by reference)
  * or generate an error.
  *
- * Inputs:  char* setting         Pointer to configuration object being set
- *          char* value           Value being set
- *          char* setting_desc    String description of setting
+ * Inputs:   char* setting         Pointer to configuration object being set
+ *           char* value           Value being set
+ *           char* setting_desc    String description of setting
  *
- * Return:  None
+ * Returns:  None
  */
 static void handle_addr_setting(char *setting, char *value, char *setting_desc) {
         if (!is_ip_address(value)) {
@@ -153,13 +153,13 @@ static void handle_addr_setting(char *setting, char *value, char *setting_desc) 
  * integer.  Update the configuration object (passed by reference)
  * or generate an error.
  *
- * Inputs:  char* setting         Pointer to configuration object being set
- *          char* value           Value being set
- *          char* setting_desc    String description of setting
- *          int   min             Expected minimum value
- *          int   max             Expected maximum value.  0 = no limit.
+ * Inputs:   char* setting         Pointer to configuration object being set
+ *           char* value           Value being set
+ *           char* setting_desc    String description of setting
+ *           int   min             Expected minimum value
+ *           int   max             Expected maximum value.  0 = no limit.
  *
- * Return:  None
+ * Returns:  None
  */
 static void handle_int_setting(int *setting, char* value, char* setting_desc, 
                                int min, int max) {
@@ -184,11 +184,11 @@ static void handle_int_setting(int *setting, char* value, char* setting_desc,
  * to be a network port.  Update the configuration object (passed by 
  * reference) or generate an error.
  *
- * Inputs:  char* setting         Pointer to configuration object being set
- *          char* value           Value being set
- *          char* setting_desc    String description of setting
+ * Inputs:   char* setting         Pointer to configuration object being set
+ *           char* value           Value being set
+ *           char* setting_desc    String description of setting
  *
- * Return:  None
+ * Returns:  None
  */
 static void handle_port_setting(int *setting, char* value, char* setting_desc) {
     handle_int_setting(setting, value, setting_desc, 1, 65535);
@@ -200,10 +200,10 @@ static void handle_port_setting(int *setting, char* value, char* setting_desc) {
  * Allocate an appropriate amount of memory for all provided HEC servers if
  * needed, or verify that memory has already been allocated properly.
  *
- * Inputs:  freeflow_config* config    Pointer to configuration object
- *          char*            value     Value being set
+ * Inputs:   freeflow_config* config    Pointer to configuration object
+ *           char*            value     Value being set
  *
- * Return:  None
+ * Returns:  None
  */
 static void initialize_hec_servers(freeflow_config* config, char *value) {
     if (config->num_servers <= 0) {
@@ -232,10 +232,10 @@ static void initialize_hec_servers(freeflow_config* config, char *value) {
  * objects.  Generates an error for improperly formatted configurations, or
  * if there are a different number of servers than tokens.
  *
- * Inputs:  freeflow_config* config    Pointer to configuration object
- *          char*            servers   String of one or more HEC servers
+ * Inputs:   freeflow_config* config    Pointer to configuration object
+ *           char*            servers   String of one or more HEC servers
  *
- * Return:  None
+ * Returns:  None
  */
 static void handle_hec_servers(freeflow_config* config, char* servers) {
     initialize_hec_servers(config, servers);
@@ -262,10 +262,10 @@ static void handle_hec_servers(freeflow_config* config, char* servers) {
  * objects.  Generates an error for improperly formatted configurations, or
  * if there are a different number of tokens than servers.
  *
- * Inputs:  freeflow_config* config    Pointer to configuration object
- *          char*            tokens    String of one or more HEC servers
+ * Inputs:   freeflow_config* config    Pointer to configuration object
+ *           char*            tokens    String of one or more HEC servers
  *
- * Return:  None
+ * Returns:  None
  */
 static void handle_hec_tokens(freeflow_config* config, char* tokens) {
     initialize_hec_servers(config, tokens);
@@ -286,9 +286,9 @@ static void handle_hec_tokens(freeflow_config* config, char* tokens) {
  * Initializes the members of the config object to invalid settings, so as to
  * be able to check whether valid settings are provided in the config file.
  *
- * Inputs:  freeflow_config* config    Pointer to configuration object
+ * Inputs:   freeflow_config* config    Pointer to configuration object
  *
- * Return:  None
+ * Returns:  None
  */
 static void initialize_configuration(freeflow_config* config) {
     memset(&config->bind_addr, 0, sizeof(config->bind_addr));
@@ -306,9 +306,9 @@ static void initialize_configuration(freeflow_config* config) {
  * Checks all mandatory configuration settings to make sure valid settings have
  * been supplied.  Generates an error for improperly invalid settings.
  *
- * Inputs:  freeflow_config* config    Pointer to configuration object
+ * Inputs:   freeflow_config* config    Pointer to configuration object
  *
- * Return:  None
+ * Returns:  None
  */
 static void verify_configuration(freeflow_config* config) {
 
@@ -341,9 +341,9 @@ static void verify_configuration(freeflow_config* config) {
  * Open and recurse through the configuration file and handle all the
  * settings, storing them to the configuration object.
  *
- * Inputs:  freeflow_config* config    Pointer to configuration object
+ * Inputs:   freeflow_config* config    Pointer to configuration object
  *
- * Return:  None
+ * Returns:  None
  */
 void read_configuration(freeflow_config* config) {
     char line[CONFIG_LINE_SIZE];
@@ -406,11 +406,11 @@ void read_configuration(freeflow_config* config) {
  * Process and store the command line arguments provided when executing the
  * program, and validate for unexpected options.
  *
- * Inputs:  int              argc      Number of arguments
- *          char*            argv      Pointer to array of arguments
- *          freeflow_config* config    Pointer to configuration object
+ * Inputs:   int              argc      Number of arguments
+ *           char*            argv      Pointer to array of arguments
+ *           freeflow_config* config    Pointer to configuration object
  *
- * Return:  None
+ * Returns:  None
  */
 void parse_command_args(int argc, char** argv, freeflow_config* config) {
     int option;
