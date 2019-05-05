@@ -49,6 +49,7 @@ static void handle_signal(int sig) {
  */
 static int receive_packets(int log_queue, freeflow_config *config) {
     char log_message[LOG_MESSAGE_SIZE];
+    char error_message[LOG_MESSAGE_SIZE];
     char packet[PACKET_BUFFER_SIZE];
 
     int socket_id;
@@ -59,7 +60,7 @@ static int receive_packets(int log_queue, freeflow_config *config) {
     }
         
     int packet_queue;
-    if ((packet_queue = create_queue(config->config_file, PACKET_QUEUE)) < 0) {
+    if ((packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message)) < 0) {
         log_error("Unable to create IPC queue for packets.", log_queue);
         return -2;
     }
@@ -130,18 +131,26 @@ static void clean_up_processes(freeflow_config* config, pid_t workers[],
  * will handle send and receive functions for the Netflow UDP socket.
  * 
  * Return:  0   Success
+ * Return:  -1  Unable to create IPC log queue
  */
 int main(int argc, char** argv) {
     signal(SIGTERM, handle_signal);
     signal(SIGINT, handle_signal);
 
+    char log_message[LOG_MESSAGE_SIZE];
+    char error_message[LOG_MESSAGE_SIZE];
     freeflow_config config;
 
     parse_command_args(argc, argv, &config);
     read_configuration(&config);
 
     int i;
-    int log_queue = create_queue(config.config_file, LOG_QUEUE);
+    int log_queue;
+    if ((log_queue = create_queue(config.config_file, LOG_QUEUE, error_message)) < 0) {
+        sprintf(log_message, "Unable to create IPC queue for logging: %s.", error_message);        
+        log_error(log_message, log_queue);
+        return -1;
+    }
 
     pid_t logger_pid;
     if ((logger_pid = fork()) == 0) {

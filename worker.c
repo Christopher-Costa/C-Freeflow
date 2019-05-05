@@ -144,6 +144,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGINT, handle_worker_sigint);
 
     char log_message[LOG_MESSAGE_SIZE];
+    char error_message[LOG_MESSAGE_SIZE];
     int socket_id = connect_socket(worker_num, config, log_queue);
 
     if (socket_id < 0) {
@@ -171,8 +172,23 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     sprintf(log_message, "Splunk worker #%d [PID %d] started.", worker_num, getpid());
     log_info(log_message, log_queue);
 
-    int packet_queue = create_queue(config->config_file, PACKET_QUEUE);
-    set_queue_size(packet_queue, config->queue_size);
+    int packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message);
+    if (packet_queue < 0) {
+        sprintf(log_message, 
+                "Splunk worker #%d [PID %d] unable to open packet queue: %s.", 
+                worker_num, getpid(), error_message);        
+        log_error(log_message, log_queue);
+        kill(getppid(), SIGTERM);
+    }
+
+    int result = set_queue_size(packet_queue, config->queue_size, error_message);
+    if (result < 0) {
+        sprintf(log_message, 
+                "Splunk worker #%d [PID %d] unable to set queue size: %s.", 
+                worker_num, getpid(), error_message);        
+        log_error(log_message, log_queue);
+        kill(getppid(), SIGTERM);
+    }
 
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(keep_working) {
