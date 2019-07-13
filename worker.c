@@ -13,6 +13,18 @@
 
 int keep_working = 1;
 
+/*
+ * Function: hec_header
+ *
+ * Create the HTTP POST header for sending to Splunk HTTP Event
+ * Collector.
+ *
+ * Inputs:   hec*       server          Splunk HEC server object
+ *           int        content_length  length of the message being sent
+ *           char*      header          Header string
+ *
+ * Returns:  0          Success
+ */
 int hec_header(hec* server, int content_length, char* header) {
     char h[500];
 
@@ -24,13 +36,39 @@ int hec_header(hec* server, int content_length, char* header) {
     strcat(h, "Content-Length: %d\r\n\r\n"); 
 
     sprintf(header, h, server->addr, server->port, server->token, content_length); 
-}
-
-int empty_payload(char* payload, hec* server) {
-    hec_header(server, 0, payload);
     return 0;
 }
 
+/*
+ * Function: empty_payload
+ *
+ * Wrapper to create a 0 length, no payload  HTTP POST header for sending to 
+ * to start Splunk HTTP Event Collector connection.
+ *
+ * Inputs:   hec*       server          Splunk HEC server object
+ *           char*      header          Header string
+ *
+ * Returns:  0          Success
+ */
+int empty_payload(char* header, hec* server) {
+    hec_header(server, 0, header);
+    return 0;
+}
+
+/*
+ * Function: parse_packet
+ *
+ * Receive an IP packet containing netflow records, parse them, and create an
+ * HTTP POST message suitable for sending to a Splunk HEC server. 
+ *
+ * Inputs:   packet_buffer*    server           Packet containing netflow record(s)
+ *           char*             payload          String to store HEC payload
+ *           freeflow_config*  config           Pointer to configuration object
+ *           int               server_instance  Instance # of HEC server to send to
+ *           int               log_queue        Id of IPC queue for logging
+ *
+ * Returns:  0                 Success
+ */
 int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
                  int server_instance, int log_queue) {
 
@@ -125,6 +163,15 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
     return 0;
 }
 
+/*
+ * Function: response_code
+ *
+ * Pull the HTTP response code from an HTTP response and return it as an integer.
+ *
+ * Inputs:   char*      response_code  HTTP response message
+ *
+ * Returns:  <response code>
+ */
 int response_code(char* response) {
     char *token;
     char delim[2] = " ";
@@ -133,10 +180,32 @@ int response_code(char* response) {
     return(atoi(token));
 }
 
+/*
+ * Function: handle_worker_sigterm
+ *
+ * Handle SIGTERM signals by toggling the 'keep_listening' variable.  
+ * This variable controls the main while loop, and will allow the
+ * program to end gracefully and ensure everything is cleaned up properly.
+ *
+ * Inputs:   int sig        The signal being passed.  Currently unused.
+ *
+ * Returns:  None
+ */
 void handle_worker_sigterm(int sig) {
     keep_working = 0;
 }
 
+/*
+ * Function: handle_signal
+ *
+ * Handle SIGINT signals by setting toggling the 'keep_listening' variable.  
+ * This variable controls the main while loop, and will allow the
+ * program to end gracefully and ensure everything is cleaned up properly.
+ *
+ * Inputs:   int sig        The signal being passed.  Currently unused.
+ *
+ * Returns:  None
+ */
 void handle_worker_sigint(int sig) {}
 
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
