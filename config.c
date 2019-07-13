@@ -417,11 +417,14 @@ void parse_command_args(int argc, char** argv, freeflow_config* config) {
     int index;
     opterr = 0;
 
-    while ((option = getopt (argc, argv, "c:")) != -1)
+    config->debug = 0;
+    while ((option = getopt (argc, argv, "dc:")) != -1)
         switch (option) {
             case 'c':
-                //config->config_file = malloc(strlen(optarg) + 1);
                 strcpy(config->config_file, optarg);
+                break;
+            case 'd':
+                config->debug = 1;
                 break;
             case '?':
                 if (optopt == 'c') {

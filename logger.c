@@ -89,6 +89,21 @@ static void logger(char* message, char* severity, int queue_id) {
 }
 
 /*
+ * Function: log_debug
+ *
+ * Wrapper function to be used to create a message of DEBUG severity and
+ * have it logged.
+ *
+ * Inputs:   char* message     Log message string
+ *           int   queue_id    Id value of IPC message queue to use
+ *
+ * Returns:  None
+ */
+void log_debug(char* message, int queue_id) {
+    logger(message, "DEBUG", queue_id);
+}
+
+/*
  * Function: log_info
  *
  * Wrapper function to be used to create a message of INFO severity and

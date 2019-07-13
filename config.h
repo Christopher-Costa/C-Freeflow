@@ -24,6 +24,7 @@ typedef struct freeflow_config {
     int hec_port;
     char log_file[LOG_FILE_SIZE];
     char config_file[CONFIG_FILE_SIZE];
+    int debug;
 } freeflow_config;
 
 void parse_command_args(int argc, char** argv, freeflow_config* config_obj);

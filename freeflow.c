@@ -76,8 +76,13 @@ static int receive_packets(int log_queue, freeflow_config *config) {
         int bytes_recv;
         bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, 
                               (struct sockaddr*)&sender, &socket_len);
-
         if (bytes_recv > 0) {
+            if (config->debug) {
+                char s[IPV4_ADDR_SIZE];
+                strcpy(s, inet_ntoa(sender.sin_addr));
+                sprintf(log_message, "Netflow packet received from %s.", s);
+                log_debug(log_message, log_queue);
+            }
             message.packet_len = bytes_recv;
             strcpy(message.sender, inet_ntoa(sender.sin_addr));
             memcpy(message.packet, packet, bytes_recv);
