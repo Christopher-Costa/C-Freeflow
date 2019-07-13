@@ -208,6 +208,22 @@ void handle_worker_sigterm(int sig) {
  */
 void handle_worker_sigint(int sig) {}
 
+/*
+ * Function: splunk_worker
+ *
+ * The main function of a worker process.  This routine tests connectivity
+ * to Splunk HEC, and validates the authentication credentials.  If
+ * successful, it will continually poll an IPC message queue looking for
+ * new netflow packets, parse them, and then send to HEC.  This process
+ * continues indefinitely until receiving a SIGTERM.
+ *
+ * Inputs:   int               worker_num  Id of this worker process
+ *           freeflow_config*  config      Configuration object
+ *           int               log_queue   Id of the IPC message queue to
+ *                                         send logs to.
+ *
+ * Returns:  0          Success
+ */
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGTERM, handle_worker_sigterm);
     signal(SIGINT, handle_worker_sigint);
@@ -281,4 +297,6 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     free(packet);
     free(payload);
     free(recv_buffer);
+
+    return 0;
 }
