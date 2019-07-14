@@ -255,7 +255,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     int instance = worker_num % config->num_servers;
 
     /* Send an empty HEC message to prevent Splunk from closing the connection
-       within 40s.  Use the opportunity to validate the authentication token. */
+     * within 40s.  Use the opportunity to validate the authentication token. */
     empty_payload(dummy, &config->hec_server[instance]);
     int dummy_len = strlen(dummy);
     int bytes_written = write(socket_id, dummy, dummy_len);
@@ -311,6 +311,11 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 
     packet_buffer *packet = malloc(sizeof(packet_buffer));
     while(keep_working) {
+
+        /* If there are no messages in the queue, don't wait for one to
+         * arrive.  This is to give an opportunity for the loop to be 
+         * broken by a SIGTERM.  If the queue was empty, sleep for 0.01s
+         * to prevent the CPU from saturating. */  
         int bytes = msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, IPC_NOWAIT);
         if (bytes <= 0) {
             usleep(1000);
