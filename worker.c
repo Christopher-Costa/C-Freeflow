@@ -84,7 +84,6 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
 
     // Make sure the version field is correct
     if (ntohs(h->version) != 5){
-        char log_message[LOG_MESSAGE_SIZE];
         sprintf(log_message, "Packet received with invalid version: %d", ntohs(h->version));
         log_warning(log_message, log_queue);
         return 1;
@@ -98,6 +97,11 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
         log_warning(log_message, log_queue);
         return 1;
     }
+     
+    if (config->debug) {
+        sprintf(log_message, "Packet contains %d records", num_records);
+        log_debug(log_message, log_queue);
+    } 
 
     long sys_uptime = ntohl(h->sys_uptime);
     long unix_secs = ntohl(h->unix_secs);
@@ -160,6 +164,10 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
 
     hec_header(&config->hec_server[server_instance], (int)strlen(splunk_payload), payload);
     strcat(payload, splunk_payload);
+    if (config->debug) {
+        sprintf(log_message, "HTTP message of length %d assembled to send to HEC.", strlen(payload));
+        log_debug(log_message, log_queue);
+    } 
     return 0;
 }
 
@@ -170,13 +178,17 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
  *
  * Inputs:   char*      response_code  HTTP response message
  *
- * Returns:  <response code>
+ * Returns:  <response code>  Success
+ *           -1               Failure to parse
  */
 int response_code(char* response) {
     char *token;
     char delim[2] = " ";
     token = strtok(response, delim);
     token = strtok(NULL, delim);
+    if (!token) {
+        return -1;
+    }
     return(atoi(token));
 }
 
@@ -235,20 +247,42 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     if (socket_id < 0) {
         kill(getppid(), SIGTERM);
     }
-
+    
     char *payload = malloc(PACKET_BUFFER_SIZE);
     char *dummy = malloc(PACKET_BUFFER_SIZE);
     char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
 
     int instance = worker_num % config->num_servers;
 
-    // Send an empty HEC message to prevent Splunk from closing the connection
-    // within 40s.  Use the opportunity to validate the authentication token.
+    /* Send an empty HEC message to prevent Splunk from closing the connection
+       within 40s.  Use the opportunity to validate the authentication token. */
     empty_payload(dummy, &config->hec_server[instance]);
-    write(socket_id, dummy, strlen(dummy));
-    read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
+    int dummy_len = strlen(dummy);
+    int bytes_written = write(socket_id, dummy, dummy_len);
+    int bytes_read = read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
     free(dummy);
-    if (response_code(recv_buffer) == 403) {
+
+    if (dummy_len != bytes_written) {
+        sprintf(log_message, "Failed to write all bytes to Splunk HEC during test.", worker_num);
+        log_error(log_message, log_queue);
+        kill(getppid(), SIGTERM);
+    }
+    
+    if (bytes_read < 0) {
+        sprintf(log_message, 
+                "Error receiving response from Splunk HEC during test (Is SSL enabled on HEC?)",
+                worker_num);
+        log_error(log_message, log_queue);
+        kill(getppid(), SIGTERM);
+    }
+
+    int code = response_code(recv_buffer);
+    if (code < 0) {
+        sprintf(log_message, "Received invalid response from Splunk HEC.", worker_num);
+        log_error(log_message, log_queue);
+        kill(getppid(), SIGTERM);
+    }
+    if (code == 403) {
         sprintf(log_message, "Splunk worker #%d unable to authenticate with Splunk.", worker_num);
         log_error(log_message, log_queue);
         kill(getppid(), SIGTERM);
@@ -283,11 +317,18 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             continue;
         }
 
+        if (config->debug){
+            sprintf(log_message, "Packet received by worked #%d", worker_num);
+            log_debug(log_message, log_queue);
+        }
         char results = parse_packet(packet, payload, config, instance, log_queue);
         
         int bytes_sent = write(socket_id, payload, strlen(payload));
         if (bytes_sent < strlen(payload)) {
             log_warning("Incomplete packet delivery.", log_queue);
+        }
+        else if (config->debug) {
+            log_debug("Packet delivered to HEC.", log_queue);
         }
 
         read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
