@@ -1,7 +1,7 @@
 freeflow
 =========
 
-A software program written in C that runs a Netflow v5 receive and parses/sends to a Splunk HTTP Event Collector (HEC) in a compact .csv format.  This was developed as a way of ingesting Netflow into Splunk in a more economical way (i.e. less license) than Splunk Stream's JSON encoding..
+A software program written in C that runs a Netflow v5 receiver and parses/sends data to a Splunk HTTP Event Collector (HEC) in a compact .csv format.  This was developed as a way of ingesting Netflow into Splunk in a more economical way (~25% of the license demand) than Splunk Stream.
 
 Requirements
 ------------
