@@ -8,13 +8,14 @@ Requirements
 
 * This was developed and tested on CentOS 7.  I make no guarantees about performance on other distros.
 * Currently it only supports HTTP, and not HTTPS enabled HEC.
+* Requires openssl-devel
 
 Compiling
 ---------
 
 GCC needs to be installed.  Only standard libraries are required.
 
-    gcc freeflow.c logger.c queue.c config.c socket.c worker.c -o freeflow.out -lrt
+    gcc freeflow.c logger.c queue.c config.c socket.c worker.c ssl.c -o freeflow.out -lrt -lssl -lcrypto
 
 Running
 -------
