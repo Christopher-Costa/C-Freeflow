@@ -7,12 +7,12 @@ Requirements
 ------------
 
 * This was developed and tested on CentOS 7.  I make no guarantees about performance on other distros.
-* Requires openssl-devel
+* Requires openssl-devel to compile.
 
 Compiling
 ---------
 
-GCC needs to be installed.  Only standard libraries are required.
+GCC needs to be installed.  Only standard libraries, plus openssl-devel are required to compile.
 
     gcc freeflow.c logger.c queue.c config.c socket.c worker.c ssl.c -o freeflow.out -lrt -lssl -lcrypto
 
