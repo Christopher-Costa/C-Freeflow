@@ -7,7 +7,7 @@
 #include "freeflow.h"
 #include "netflow.h"
 #include "config.h"
-#include "socket.h"
+#include "session.h"
 #include "queue.h"
 #include "worker.h"
 

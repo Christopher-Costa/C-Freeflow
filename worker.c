@@ -8,8 +8,7 @@
 #include "freeflow.h"
 #include "netflow.h"
 #include "config.h"
-#include "socket.h"
-#include "ssl.h"
+#include "session.h"
 #include "queue.h"
 
 int keep_working = 1;
@@ -241,54 +240,43 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGTERM, handle_worker_sigterm);
     signal(SIGINT, handle_worker_sigint);
 
-    SSL *ssl_session;    
-
     char log_message[LOG_MESSAGE_SIZE];
     char error_message[LOG_MESSAGE_SIZE];
-    int socket_id = connect_socket(worker_num, config, log_queue);
+    char recv_buffer_header[PACKET_BUFFER_SIZE];
+    char recv_buffer_payload[PACKET_BUFFER_SIZE];
 
-    if (socket_id < 0) {
+    hec_session session;
+
+    int result = initialize_session(&session, worker_num, config, log_queue);
+    if (result < 0) {
         kill(getppid(), SIGTERM);
     }
 
-   
-    if (config->ssl_enabled > 0) {
-        ssl_session = ssl_initialize(socket_id, log_queue);
-        if (ssl_session == NULL) {
-            sprintf(log_message, "Worker #%d can't establish SSL connection with Splunk.", worker_num);
-            log_error(log_message, log_queue);
-            kill(getppid(), SIGTERM);
-        }
-    }
-    
     char payload[PAYLOAD_BUFFER_SIZE];
     char dummy[PACKET_BUFFER_SIZE];
     
     /* Responses are received in 2 parts;  The first part is the HTML response
      * header.  The second is JSON encoded payload from Splunk.
      */
-    char recv_buffer_header[PACKET_BUFFER_SIZE];
-    char recv_buffer_payload[PACKET_BUFFER_SIZE];
-
-    int instance = worker_num % config->num_servers;
-
     /* Send an empty HEC message to prevent Splunk from closing the connection
      * within 40s.  Use the opportunity to validate the authentication token. */
-    empty_payload(dummy, &config->hec_server[instance]);
+    empty_payload(dummy, &config->hec_server[session.hec_instance]);
     int dummy_len = strlen(dummy);
-    int bytes_written;
     int bytes_read;
-    if (config->ssl_enabled == 0) {
-        bytes_written = write(socket_id, dummy, dummy_len);
-        bytes_read = read(socket_id, &recv_buffer_header, PACKET_BUFFER_SIZE);
-        bytes_read = read(socket_id, &recv_buffer_payload, PACKET_BUFFER_SIZE);
-    }
-    else {
-        bytes_written = SSL_write(ssl_session, dummy, dummy_len);
-        usleep(1000);
-        bytes_read = SSL_read(ssl_session, &recv_buffer_header, PACKET_BUFFER_SIZE);
-        bytes_read = SSL_read(ssl_session, &recv_buffer_payload, PACKET_BUFFER_SIZE);
-    }
+
+    int bytes_written = session_write(&session, dummy, dummy_len);
+    return 0;
+//    if (config->ssl_enabled == 0) {
+//        bytes_written = write(socket_id, dummy, dummy_len);
+//        bytes_read = read(socket_id, &recv_buffer_header, PACKET_BUFFER_SIZE);
+//        bytes_read = read(socket_id, &recv_buffer_payload, PACKET_BUFFER_SIZE);
+//    }
+//    else {
+//        bytes_written = SSL_write(ssl_session, dummy, dummy_len);
+//        usleep(1000);
+//        bytes_read = SSL_read(ssl_session, &recv_buffer_header, PACKET_BUFFER_SIZE);
+//        bytes_read = SSL_read(ssl_session, &recv_buffer_payload, PACKET_BUFFER_SIZE);
+//    }
 
     if (dummy_len != bytes_written) {
         sprintf(log_message, "Failed to write all bytes to Splunk HEC during test.", worker_num);
@@ -328,7 +316,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         kill(getppid(), SIGTERM);
     }
 
-    int result = set_queue_size(packet_queue, config->queue_size, error_message);
+    result = set_queue_size(packet_queue, config->queue_size, error_message);
     if (result < 0) {
         sprintf(log_message, 
                 "Splunk worker #%d [PID %d] unable to set queue size: %s.", 
@@ -351,28 +339,28 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         }
 
         if (config->debug){
-            sprintf(log_message, "Packet received by worked #%d", worker_num);
+            sprintf(log_message, "Packet received by worker #%d", worker_num);
             log_debug(log_message, log_queue);
         }
-        int results = parse_packet(&packet, payload, config, instance, log_queue);
+        int results = parse_packet(&packet, payload, config, session.hec_instance, log_queue);
         
         int bytes_sent;
         int bytes_read_header;
         int bytes_read_payload;
         printf("sending....\n");
-        if (config->ssl_enabled == 0) {
-            bytes_sent = write(socket_id, &payload, strlen(payload));
-        }
-        else {
-            bytes_sent = SSL_write(ssl_session, &payload, strlen(payload));
-        }
+//        if (config->ssl_enabled == 0) {
+//            bytes_sent = write(socket_id, &payload, strlen(payload));
+//        }
+//        else {
+//            bytes_sent = SSL_write(ssl_session, &payload, strlen(payload));
+//       }
 
-        if (bytes_sent < strlen(payload)) {
-            log_warning("Incomplete packet delivery.", log_queue);
-        }
-        else if (config->debug) {
-            log_debug("Packet delivered to HEC.", log_queue);
-        }
+//        if (bytes_sent < strlen(payload)) {
+//            log_warning("Incomplete packet delivery.", log_queue);
+//        }
+//        else if (config->debug) {
+//            log_debug("Packet delivered to HEC.", log_queue);
+//        }
         printf("sent %d\n", bytes_sent);
 
         printf("1\n");
@@ -381,14 +369,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         memset(&recv_buffer_payload, 0, sizeof(recv_buffer_payload));
         printf("3\n");
         printf("reading....\n");
-        if (config->ssl_enabled == 0) {
-            bytes_read_header = read(socket_id, &recv_buffer_header, PACKET_BUFFER_SIZE);
-            bytes_read_payload = read(socket_id, &recv_buffer_payload, PACKET_BUFFER_SIZE);
-        }
-        else {
-            bytes_read_header = SSL_read(ssl_session, &recv_buffer_header, PACKET_BUFFER_SIZE);
-            bytes_read_payload = SSL_read(ssl_session, &recv_buffer_payload, PACKET_BUFFER_SIZE);
-        }
+//        if (config->ssl_enabled == 0) {
+//            bytes_read_header = read(socket_id, &recv_buffer_header, PACKET_BUFFER_SIZE);
+//            bytes_read_payload = read(socket_id, &recv_buffer_payload, PACKET_BUFFER_SIZE);
+//        }
+//        else {
+//            bytes_read_header = SSL_read(ssl_session, &recv_buffer_header, PACKET_BUFFER_SIZE);
+//            bytes_read_payload = SSL_read(ssl_session, &recv_buffer_payload, PACKET_BUFFER_SIZE);
+//        }
         printf("read\n");
         printf("------------\n");
         printf("%d\n", bytes_read_header);
@@ -397,7 +385,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         printf("%s\n", recv_buffer_payload);
     }
     
-    close(socket_id);
+//    close(socket_id);
 
     return 0;
 }

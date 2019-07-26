@@ -6,8 +6,65 @@
 #include <netinet/tcp.h>
 #include "freeflow.h"
 #include "config.h"
+#include "session.h"
 
 static int enable_keepalives(int socket_id, char* error);
+
+/*
+ * Function: ssl_initialize
+ *
+ * Initialize an SSL session over an open TCP socket.  Return
+ * the session handle if successful, and NULL otherwise.
+ *
+ * Inputs:   int   socket_id    Id of the socket
+ *           int   log_queue    Id of IPC queue for logging
+ *
+ * Returns:  <SSL object>     Success
+ *           NULL             Failure
+ */
+int ssl_initialize(hec_session* session, int worker_num, freeflow_config* config, int log_queue) {
+    const SSL_METHOD *method;
+    SSL_CTX *ctx;
+    char log_message[LOG_MESSAGE_SIZE];
+    char ssl_error[120];
+
+    session->is_ssl = 1;
+ 
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    method = TLSv1_2_client_method();
+    ctx = SSL_CTX_new(method);
+
+    if ( ctx == NULL )
+    {
+        ERR_error_string(ERR_get_error(), ssl_error);
+        sprintf(log_message, "Worker #%d SSL Error: ", worker_num);
+        strcat(log_message, ssl_error);
+        log_error(log_message, log_queue);
+        return -1;        
+    }
+    else if (config->debug){
+        sprintf(log_message, "Worker #%d SSL initialized using TLS 1.2 method.", worker_num);
+        log_debug(log_message, log_queue);
+    }
+
+    session->ssl_session = SSL_new(ctx);
+    SSL_set_fd(session->ssl_session, session->socket_id);
+    if ( SSL_connect(session->ssl_session) == -1 ) {
+        ERR_error_string(ERR_get_error(), ssl_error);
+        sprintf(log_message, "Worker #%d SSL Error: ", worker_num);
+        strcat(log_message, ssl_error);
+        log_error(log_message, log_queue);
+        return -2;        
+    }
+    else if (config->debug){
+        sprintf(log_message, "Worker #%d SSL is connected over socket #%d.", worker_num, session->socket_id);
+        log_debug(log_message, log_queue);
+    }
+    
+    return 0;
+}
 
 /*
  * Function: enable_keepalives
@@ -66,20 +123,19 @@ static int enable_keepalives(int socket_id, char* error) {
  *           -4             Couldn't connect to server
  *           -5             Couldn't enable recv timeout
  */
-int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
+int connect_socket(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
     char log_message[LOG_MESSAGE_SIZE];
     char error_message[LOG_MESSAGE_SIZE];
-    int socket_id;
 
-    if((socket_id = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if((session->socket_id = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         sprintf(log_message, "Error opening socket: %s", strerror(errno));
         log_error(log_message, log_queue);
         return -1;
     }
 
-    if (enable_keepalives(socket_id, error_message) < 0) {
+    if (enable_keepalives(session->socket_id, error_message) < 0) {
         sprintf(log_message, "Unable to enable keepalives on socket: %s", error_message);
         log_error(log_message, log_queue);
         return -2;
@@ -89,7 +145,7 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
     struct timeval timeout;
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
-    if (setsockopt(socket_id, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+    if (setsockopt(session->socket_id, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
         sprintf(log_message, "Unable to enable keepalives on socket: %s", error_message);
         log_error(log_message, log_queue);
         return -5;
@@ -97,9 +153,9 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
 
     addr.sin_family = AF_INET;
 
-    int   hec_instance = worker_num % config->num_servers;
-    int   hec_port = config->hec_server[hec_instance].port;
-    char* hec_addr = config->hec_server[hec_instance].addr;
+    session->hec_instance = worker_num % config->num_servers;
+    int   hec_port = config->hec_server[session->hec_instance].port;
+    char* hec_addr = config->hec_server[session->hec_instance].addr;
 
     host = gethostbyname(hec_addr);
     if(host == NULL) {
@@ -110,18 +166,24 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
 
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
     addr.sin_port = htons(hec_port);
-    if (connect(socket_id, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)) < 0) {
+    if (connect(session->socket_id, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)) < 0) {
         sprintf(log_message, "Couldn't connect to %s:%d: %s.", hec_addr, hec_port,
                                                                strerror(errno));
         log_error(log_message, log_queue);
         return -4;
     } 
+    else if (config->debug) {
+        sprintf(log_message, 
+                "Worker #%d TCP socket [%d] connected to %s:%d.", 
+                worker_num, session->socket_id, hec_addr, hec_port);
+        log_debug(log_message, log_queue);
+    }
+        
 
-    sprintf(log_message, 
-            "Worker #%d connected to HEC %s:%d", 
-            worker_num , hec_addr , hec_port);
+    sprintf(log_message, "Worker #%d connected to HEC %s:%d", worker_num, hec_addr, hec_port);
     log_info(log_message, log_queue);
-    return(socket_id);
+
+    return 0;
 }
 
 /*
@@ -181,4 +243,30 @@ int bind_socket(freeflow_config *config, int log_queue) {
                                                                  config->bind_port);
     log_info(log_message, log_queue);
     return(socket_id);
+}
+
+int initialize_session(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
+    char log_message[LOG_MESSAGE_SIZE];
+
+    if ((connect_socket(session, 9999, config, log_queue)) < 0) {
+        return -1;        
+    }
+
+    if (config->ssl_enabled == 1) {
+        if ((ssl_initialize(session, worker_num, config, log_queue)) < 0) {
+            sprintf(log_message, "Worker #%d can't establish SSL connection with Splunk.", worker_num);
+            log_error(log_message, log_queue);
+            return -2;
+        }
+    }
+    return 0;
+}
+
+int session_write(hec_session* session, char* message, int message_len) {
+    if (session->is_ssl) {
+        return SSL_write(session->ssl_session, message, message_len);
+    }
+    else {
+        return write(session->socket_id, message, message_len);
+    }
 }
