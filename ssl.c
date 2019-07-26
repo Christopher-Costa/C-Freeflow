@@ -1,25 +1,20 @@
 #include <stdio.h>       /* Provides: sprintf */
-#include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
-#include <netdb.h>       /* Provides: gethostbyname */
-#include <errno.h>
 #include "freeflow.h"
 #include "config.h"
 #include "ssl.h"
 
 /*
- * Function: enable_keepalives
+ * Function: ssl_initialize
  *
- * Enable keepalives on a socket object.  Set 'error' if
- * unsuccessful. 
+ * Initialize an SSL session over an open TCP socket.  Return
+ * the session handle if successful, and NULL otherwise.
  *
  * Inputs:   int   socket_id    Id of the socket
- *           char* error        Error string, if operation fails
+ *           int   log_queue    Id of IPC queue for logging
  *
- * Returns:  0     Success
- *           -1    Couldn't enable keepalives
- *           -2    Couldn't set idle time
- *           -3    Couldn't set interval
+ * Returns:  <SSL object>     Success
+ *           NULL             Failure
  */
 SSL* ssl_initialize(int socket_id, int log_queue) {
     const SSL_METHOD *method;
@@ -29,10 +24,10 @@ SSL* ssl_initialize(int socket_id, int log_queue) {
     char ssl_error[120];
  
     SSL_library_init();
-    OpenSSL_add_all_algorithms();      /* Load cryptos, et.al. */
-    SSL_load_error_strings();          /* Bring in and register error messages */
-    method = TLSv1_2_client_method();  /* Create new client-method instance */
-    ctx = SSL_CTX_new(method);         /* Create new context */
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    method = TLSv1_2_client_method();
+    ctx = SSL_CTX_new(method);
 
     if ( ctx == NULL )
     {
