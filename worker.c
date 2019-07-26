@@ -9,6 +9,7 @@
 #include "netflow.h"
 #include "config.h"
 #include "socket.h"
+#include "ssl.h"
 #include "queue.h"
 
 int keep_working = 1;
@@ -240,12 +241,24 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGTERM, handle_worker_sigterm);
     signal(SIGINT, handle_worker_sigint);
 
+    SSL *ssl_session;    
+
     char log_message[LOG_MESSAGE_SIZE];
     char error_message[LOG_MESSAGE_SIZE];
     int socket_id = connect_socket(worker_num, config, log_queue);
 
     if (socket_id < 0) {
         kill(getppid(), SIGTERM);
+    }
+
+   
+    if (config->ssl_enabled > 0) {
+        ssl_session = ssl_initialize(socket_id, log_queue);
+        if (ssl_session == NULL) {
+            sprintf(log_message, "Worker #%d can't establish SSL connection with Splunk.", worker_num);
+            log_error(log_message, log_queue);
+            kill(getppid(), SIGTERM);
+        }
     }
     
     char *payload = malloc(PACKET_BUFFER_SIZE);
@@ -258,8 +271,16 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
      * within 40s.  Use the opportunity to validate the authentication token. */
     empty_payload(dummy, &config->hec_server[instance]);
     int dummy_len = strlen(dummy);
-    int bytes_written = write(socket_id, dummy, dummy_len);
-    int bytes_read = read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
+    int bytes_written;
+    int bytes_read;
+    if (config->ssl_enabled == 0) {
+        bytes_written = write(socket_id, dummy, dummy_len);
+        bytes_read = read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
+    }
+    else {
+        bytes_written = SSL_write(ssl_session, dummy, dummy_len);
+        bytes_read = SSL_read(ssl_session, recv_buffer, PACKET_BUFFER_SIZE);
+    }
     free(dummy);
 
     if (dummy_len != bytes_written) {
@@ -270,7 +291,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     
     if (bytes_read < 0) {
         sprintf(log_message, 
-                "Error receiving response from Splunk HEC during test (Is SSL enabled on HEC?)",
+                "Error receiving response from Splunk HEC during test (SSL configuration mismatch?)",
                 worker_num);
         log_error(log_message, log_queue);
         kill(getppid(), SIGTERM);
@@ -328,7 +349,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         }
         char results = parse_packet(packet, payload, config, instance, log_queue);
         
-        int bytes_sent = write(socket_id, payload, strlen(payload));
+        int bytes_sent;
+        if (config->ssl_enabled == 0) {
+            bytes_sent = write(socket_id, payload, strlen(payload));
+        }
+        else {
+            bytes_sent = SSL_write(ssl_session, payload, strlen(payload));
+        }
+
         if (bytes_sent < strlen(payload)) {
             log_warning("Incomplete packet delivery.", log_queue);
         }
@@ -336,7 +364,12 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             log_debug("Packet delivered to HEC.", log_queue);
         }
 
-        read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
+        if (config->ssl_enabled == 0) {
+            read(socket_id, recv_buffer, PACKET_BUFFER_SIZE);
+        }
+        else {
+            SSL_read(ssl_session, recv_buffer, PACKET_BUFFER_SIZE);
+        }
     }
     
     close(socket_id);

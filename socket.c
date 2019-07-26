@@ -2,7 +2,6 @@
 #include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
-#include <signal.h>
 #include <errno.h>
 #include <netinet/tcp.h>
 #include "freeflow.h"

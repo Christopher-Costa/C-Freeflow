@@ -296,6 +296,7 @@ static void initialize_configuration(freeflow_config* config) {
     config->threads = -1;
     config->queue_size = -1;
     config->num_servers = -1;
+    config->ssl_enabled = 0;
     memset(&config->sourcetype, 0, sizeof(config->sourcetype));
     memset(&config->log_file, 0, sizeof(config->log_file));
 }
@@ -313,9 +314,10 @@ static void initialize_configuration(freeflow_config* config) {
 static void verify_configuration(freeflow_config* config) {
 
     if (!strcmp(config->bind_addr, ""))  setting_empty("bind_addr");
-    if (config->bind_port  < 0)          setting_empty("bind_port");
-    if (config->threads    < 0)          setting_empty("threads");
-    if (config->queue_size < 0)          setting_empty("queue_size");
+    if (config->bind_port   < 0)         setting_empty("bind_port");
+    if (config->threads     < 0)         setting_empty("threads");
+    if (config->queue_size  < 0)         setting_empty("queue_size");
+    if (config->ssl_enabled < 0)         setting_empty("ssl_enabled");
     if (!strcmp(config->sourcetype, "")) setting_empty("sourcetype");
     if (!strcmp(config->log_file, ""))   setting_empty("log_file");
     if (config->num_servers < 0) {
@@ -392,6 +394,9 @@ void read_configuration(freeflow_config* config) {
             }
             else if (!strcmp(key, "log_file")) {
                 strcpy(config->log_file, value);
+            }
+            else if (!strcmp(key, "ssl_enabled")) {
+                handle_int_setting(&config->ssl_enabled, value, key, 0, 1);
             }
         }
     }

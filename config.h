@@ -18,6 +18,7 @@ typedef struct freeflow_config {
     int bind_port;
     int threads;
     int queue_size;
+    int ssl_enabled;
     char sourcetype[SOURCETYPE_SIZE];
     hec* hec_server;
     int num_servers;
