@@ -64,6 +64,7 @@ static int enable_keepalives(int socket_id, char* error) {
  *           -2             Couldn't enable keepalives
  *           -3             Unable to gethostbyname
  *           -4             Couldn't connect to server
+ *           -5             Couldn't enable recv timeout
  */
 int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
@@ -82,6 +83,16 @@ int connect_socket(int worker_num, freeflow_config *config, int log_queue) {
         sprintf(log_message, "Unable to enable keepalives on socket: %s", error_message);
         log_error(log_message, log_queue);
         return -2;
+    }
+
+    /* TODO:  This should be in a separate function */
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    if (setsockopt(socket_id, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+        sprintf(log_message, "Unable to enable keepalives on socket: %s", error_message);
+        log_error(log_message, log_queue);
+        return -5;
     }
 
     addr.sin_family = AF_INET;
