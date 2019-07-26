@@ -7,6 +7,7 @@
  */
 #define LOG_MESSAGE_SIZE   256
 #define PACKET_BUFFER_SIZE 1500
+#define PAYLOAD_BUFFER_SIZE 15000
 #define IPV4_ADDR_SIZE     16
 
 typedef struct packet_buffer {

@@ -261,9 +261,9 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         }
     }
     
-    char *payload = malloc(PACKET_BUFFER_SIZE);
-    char *dummy = malloc(PACKET_BUFFER_SIZE);
-    char *recv_buffer = malloc(PACKET_BUFFER_SIZE);
+    char payload[PAYLOAD_BUFFER_SIZE];
+    char dummy[PACKET_BUFFER_SIZE];
+    char recv_buffer[PACKET_BUFFER_SIZE];
 
     int instance = worker_num % config->num_servers;
 
@@ -281,7 +281,6 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         bytes_written = SSL_write(ssl_session, dummy, dummy_len);
         bytes_read = SSL_read(ssl_session, recv_buffer, PACKET_BUFFER_SIZE);
     }
-    free(dummy);
 
     if (dummy_len != bytes_written) {
         sprintf(log_message, "Failed to write all bytes to Splunk HEC during test.", worker_num);
@@ -330,14 +329,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         kill(getppid(), SIGTERM);
     }
 
-    packet_buffer *packet = malloc(sizeof(packet_buffer));
+    packet_buffer packet;
     while(keep_working) {
 
         /* If there are no messages in the queue, don't wait for one to
          * arrive.  This is to give an opportunity for the loop to be 
          * broken by a SIGTERM.  If the queue was empty, sleep for 0.01s
          * to prevent the CPU from saturating. */  
-        int bytes = msgrcv(packet_queue, packet, sizeof(packet_buffer), 2, IPC_NOWAIT);
+        int bytes = msgrcv(packet_queue, &packet, sizeof(packet), 2, IPC_NOWAIT);
         if (bytes <= 0) {
             usleep(1000);
             continue;
@@ -347,14 +346,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             sprintf(log_message, "Packet received by worked #%d", worker_num);
             log_debug(log_message, log_queue);
         }
-        char results = parse_packet(packet, payload, config, instance, log_queue);
+        int results = parse_packet(&packet, payload, config, instance, log_queue);
         
         int bytes_sent;
         if (config->ssl_enabled == 0) {
-            bytes_sent = write(socket_id, payload, strlen(payload));
+            bytes_sent = write(socket_id, &payload, strlen(payload));
         }
         else {
-            bytes_sent = SSL_write(ssl_session, payload, strlen(payload));
+            bytes_sent = SSL_write(ssl_session, &payload, strlen(payload));
         }
 
         if (bytes_sent < strlen(payload)) {
@@ -373,9 +372,6 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     }
     
     close(socket_id);
-    free(packet);
-    free(payload);
-    free(recv_buffer);
 
     return 0;
 }
