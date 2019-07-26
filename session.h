@@ -15,3 +15,4 @@ int ssl_initialize(hec_session* session, int worker_num, freeflow_config* config
 int initialize_session(hec_session* session, int worker_num, freeflow_config* config, int log_queue);
 
 int session_write(hec_session* session, char* message, int message_len);
+int session_read(hec_session* session, char* message, int message_len);

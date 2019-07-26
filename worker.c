@@ -14,48 +14,6 @@
 int keep_working = 1;
 
 /*
- * Function: hec_header
- *
- * Create the HTTP POST header for sending to Splunk HTTP Event
- * Collector.
- *
- * Inputs:   hec*       server          Splunk HEC server object
- *           int        content_length  length of the message being sent
- *           char*      header          Header string
- *
- * Returns:  0          Success
- */
-int hec_header(hec* server, int content_length, char* header) {
-    char h[500];
-
-    strcpy(h, "POST /services/collector HTTP/1.1\r\n");        
-    strcat(h, "Host: %s:%d\r\n");
-    strcat(h, "User-Agent: freeflow\r\n");
-    strcat(h, "Connection: keep-alive\r\n");
-    strcat(h, "Authorization: Splunk %s\r\n");
-    strcat(h, "Content-Length: %d\r\n\r\n"); 
-
-    sprintf(header, h, server->addr, server->port, server->token, content_length); 
-    return 0;
-}
-
-/*
- * Function: empty_payload
- *
- * Wrapper to create a 0 length, no payload  HTTP POST header for sending to 
- * to start Splunk HTTP Event Collector connection.
- *
- * Inputs:   hec*       server          Splunk HEC server object
- *           char*      header          Header string
- *
- * Returns:  0          Success
- */
-int empty_payload(char* header, hec* server) {
-    hec_header(server, 0, header);
-    return 0;
-}
-
-/*
  * Function: parse_packet
  *
  * Receive an IP packet containing netflow records, parse them, and create an
@@ -172,27 +130,6 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
 }
 
 /*
- * Function: response_code
- *
- * Pull the HTTP response code from an HTTP response and return it as an integer.
- *
- * Inputs:   char*      response_code  HTTP response message
- *
- * Returns:  <response code>  Success
- *           -1               Failure to parse
- */
-int response_code(char* response) {
-    char *token;
-    char delim[2] = " ";
-    token = strtok(response, delim);
-    token = strtok(NULL, delim);
-    if (!token) {
-        return -1;
-    }
-    return(atoi(token));
-}
-
-/*
  * Function: handle_worker_sigterm
  *
  * Handle SIGTERM signals by toggling the 'keep_listening' variable.  
@@ -244,69 +181,19 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     char error_message[LOG_MESSAGE_SIZE];
     char recv_buffer_header[PACKET_BUFFER_SIZE];
     char recv_buffer_payload[PACKET_BUFFER_SIZE];
+    char payload[PAYLOAD_BUFFER_SIZE];
 
     hec_session session;
 
-    int result = initialize_session(&session, worker_num, config, log_queue);
-    if (result < 0) {
+    if ((initialize_session(&session, worker_num, config, log_queue)) < 0 ) {;
         kill(getppid(), SIGTERM);
     }
 
-    char payload[PAYLOAD_BUFFER_SIZE];
-    char dummy[PACKET_BUFFER_SIZE];
-    
-    /* Responses are received in 2 parts;  The first part is the HTML response
-     * header.  The second is JSON encoded payload from Splunk.
-     */
-    /* Send an empty HEC message to prevent Splunk from closing the connection
-     * within 40s.  Use the opportunity to validate the authentication token. */
-    empty_payload(dummy, &config->hec_server[session.hec_instance]);
-    int dummy_len = strlen(dummy);
-    int bytes_read;
+    if ((test_connectivity(&session, worker_num, config, log_queue)) < 0 ) {
+        kill(getppid(), SIGTERM);
+    }
 
-    int bytes_written = session_write(&session, dummy, dummy_len);
     return 0;
-//    if (config->ssl_enabled == 0) {
-//        bytes_written = write(socket_id, dummy, dummy_len);
-//        bytes_read = read(socket_id, &recv_buffer_header, PACKET_BUFFER_SIZE);
-//        bytes_read = read(socket_id, &recv_buffer_payload, PACKET_BUFFER_SIZE);
-//    }
-//    else {
-//        bytes_written = SSL_write(ssl_session, dummy, dummy_len);
-//        usleep(1000);
-//        bytes_read = SSL_read(ssl_session, &recv_buffer_header, PACKET_BUFFER_SIZE);
-//        bytes_read = SSL_read(ssl_session, &recv_buffer_payload, PACKET_BUFFER_SIZE);
-//    }
-
-    if (dummy_len != bytes_written) {
-        sprintf(log_message, "Failed to write all bytes to Splunk HEC during test.", worker_num);
-        log_error(log_message, log_queue);
-        kill(getppid(), SIGTERM);
-    }
-    
-    if (bytes_read < 0) {
-        sprintf(log_message, 
-                "Error receiving response from Splunk HEC during test (SSL configuration mismatch?)",
-                worker_num);
-        log_error(log_message, log_queue);
-        kill(getppid(), SIGTERM);
-    }
-
-    int code = response_code(recv_buffer_header);
-    if (code < 0) {
-        sprintf(log_message, "Received invalid response from Splunk HEC.", worker_num);
-        log_error(log_message, log_queue);
-        kill(getppid(), SIGTERM);
-    }
-    if (code == 403) {
-        sprintf(log_message, "Splunk worker #%d unable to authenticate with Splunk.", worker_num);
-        log_error(log_message, log_queue);
-        kill(getppid(), SIGTERM);
-    }
-
-    sprintf(log_message, "Splunk worker #%d [PID %d] started.", worker_num, getpid());
-    log_info(log_message, log_queue);
-
     int packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message);
     if (packet_queue < 0) {
         sprintf(log_message, 
@@ -316,7 +203,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         kill(getppid(), SIGTERM);
     }
 
-    result = set_queue_size(packet_queue, config->queue_size, error_message);
+    int result = set_queue_size(packet_queue, config->queue_size, error_message);
     if (result < 0) {
         sprintf(log_message, 
                 "Splunk worker #%d [PID %d] unable to set queue size: %s.", 
