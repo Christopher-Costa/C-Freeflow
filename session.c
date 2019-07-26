@@ -263,6 +263,8 @@ int initialize_session(hec_session* session, int worker_num, freeflow_config *co
 }
 
 int session_read(hec_session* session, char* message, int message_len) {
+    memset(message, 0, message_len);
+
     if (session->is_ssl) {
         return SSL_read(session->ssl_session, message, message_len);
     }

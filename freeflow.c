@@ -64,6 +64,9 @@ static int receive_packets(int log_queue, freeflow_config *config) {
         log_error("Unable to create IPC queue for packets.", log_queue);
         return -2;
     }
+    else if (config->debug) {
+        log_debug("Created IPC queue for packets.", log_queue);
+    }
 
     struct sockaddr_in sender;
     int socket_len = sizeof(sender);

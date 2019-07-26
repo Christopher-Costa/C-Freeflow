@@ -116,8 +116,5 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
         return -4;
         //kill(getppid(), SIGTERM);
     }
-
-    sprintf(log_message, "Splunk worker #%d [PID %d] started.", worker_num, getpid());
-    log_info(log_message, log_queue);
     return 0;
 }
