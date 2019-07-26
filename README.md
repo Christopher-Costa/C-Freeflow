@@ -7,7 +7,6 @@ Requirements
 ------------
 
 * This was developed and tested on CentOS 7.  I make no guarantees about performance on other distros.
-* Currently it only supports HTTP, and not HTTPS enabled HEC.
 * Requires openssl-devel
 
 Compiling
