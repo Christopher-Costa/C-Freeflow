@@ -82,7 +82,7 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
      * Responses are received in 2 parts;  The first part is the HTML response
      * header.  The second is JSON encoded payload from Splunk.
      */
-    int payload_len = empty_hec_payload(payload, &config->hec_server[session->hec_instance]);
+    int payload_len = empty_hec_payload(payload, session->hec);
     int bytes_written = session_write(session, payload, payload_len);
     int header_bytes_read = session_read(session, recv_buffer_header, PACKET_BUFFER_SIZE);
     int payload_bytes_read = session_read(session, recv_buffer_payload, PACKET_BUFFER_SIZE);

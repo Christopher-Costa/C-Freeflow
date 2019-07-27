@@ -2,10 +2,10 @@
 #include <openssl/err.h>
 
 typedef struct hec_session {
-    int  hec_instance;
     int  is_ssl;
     int  socket_id;
     SSL* ssl_session;
+    hec* hec;
 } hec_session;
 
 int bind_socket(freeflow_config *config, int log_queue);

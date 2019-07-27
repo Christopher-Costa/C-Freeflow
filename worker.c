@@ -28,7 +28,7 @@ int keep_working = 1;
  * Returns:  0                 Success
  */
 int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
-                 int server_instance, int log_queue) {
+                 hec_session* session, int log_queue) {
 
     char log_message[LOG_MESSAGE_SIZE];
 
@@ -120,7 +120,7 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
         strcat(splunk_payload, record);
     }
 
-    hec_header(&config->hec_server[server_instance], (int)strlen(splunk_payload), payload);
+    hec_header(session->hec, (int)strlen(splunk_payload), payload);
     strcat(payload, splunk_payload);
     if (config->debug) {
         sprintf(log_message, "HTTP message of length %d assembled to send to HEC.", strlen(payload));
@@ -221,25 +221,50 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             sprintf(log_message, "Packet received by worker #%d", worker_num);
             log_debug(log_message, log_queue);
         }
-        int results = parse_packet(&packet, payload, config, session.hec_instance, log_queue);
-        
+        int results = parse_packet(&packet, payload, config, &session, log_queue);
+
         int bytes_sent = session_write(&session, payload, strlen(payload));
 
         if (bytes_sent < strlen(payload)) {
             log_warning("Incomplete packet delivery.", log_queue);
         }
         else if (config->debug) {
-            sprintf(log_message,"Packet delivered to HEC [%s].", config->hec_server[session.hec_instance].addr);
+            sprintf(log_message,"Packet delivered to HEC [%s].", session.hec->addr);
             log_debug(log_message, log_queue);
         }
 
-        int bytes_read_header = session_read(&session, recv_buffer_header, PACKET_BUFFER_SIZE);;
+        int bytes_read_header = session_read(&session, recv_buffer_header, PACKET_BUFFER_SIZE);
+
+        /* If no bytes were read, we may have a problem . */
+        if (bytes_read_header <= 0) {
+            int retry_count = 1;
+            while (keep_working && (bytes_read_header <= 0)) {
+                int status = session_status(&session, error_message);
+
+                /* If the session is still up, keep trying */
+                if (status == 0) {
+                    sprintf(log_message, "Worker #%d received no response from HEC.  Retrying [#%d]."
+                                       , worker_num, retry_count);
+                    log_warning(log_message, log_queue);
+
+                    sleep(1);
+                    bytes_read_header = session_read(&session, recv_buffer_header, PACKET_BUFFER_SIZE);
+                    retry_count++;
+                }
+                
+                /* If it isn't, requeue the packet so it may be delivered by another worker */
+                else {
+                    sprintf(log_message, "Worker #%d HEC socket error: %s.", worker_num, error_message);
+                    log_warning(log_message, log_queue);                
+                    return 0;
+                }
+            }
+        }
         int bytes_read_payload = session_read(&session, recv_buffer_payload, PACKET_BUFFER_SIZE);
+        printf("read: %d bytes\n", bytes_read_payload);
         printf("------------\n");
-        printf("%d\n", bytes_read_header);
-        printf("%d\n", bytes_read_payload);
         printf("%s\n", recv_buffer_header);
-        printf("%s\n", recv_buffer_payload);
+        printf("%s\n\n", recv_buffer_payload);
     }
     
     close(session.socket_id);

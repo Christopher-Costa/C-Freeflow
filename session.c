@@ -153,9 +153,10 @@ int connect_socket(hec_session* session, int worker_num, freeflow_config *config
 
     addr.sin_family = AF_INET;
 
-    session->hec_instance = worker_num % config->num_servers;
-    int   hec_port = config->hec_server[session->hec_instance].port;
-    char* hec_addr = config->hec_server[session->hec_instance].addr;
+    int hec_instance = worker_num % config->num_servers;
+    int   hec_port = config->hec_server[hec_instance].port;
+    char* hec_addr = config->hec_server[hec_instance].addr;
+    session->hec = &config->hec_server[hec_instance];
 
     host = gethostbyname(hec_addr);
     if(host == NULL) {
@@ -248,7 +249,7 @@ int bind_socket(freeflow_config *config, int log_queue) {
 int initialize_session(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     char log_message[LOG_MESSAGE_SIZE];
 
-    if ((connect_socket(session, 9999, config, log_queue)) < 0) {
+    if ((connect_socket(session, worker_num, config, log_queue)) < 0) {
         return -1;        
     }
 
@@ -280,4 +281,20 @@ int session_write(hec_session* session, char* message, int message_len) {
     else {
         return write(session->socket_id, message, message_len);
     }
+}
+
+int session_status(hec_session* session, char* error_message) {
+    int error = 0;
+    socklen_t len = sizeof(error);
+    int result = getsockopt (session->socket_id, SOL_SOCKET, SO_ERROR, &error, &len);
+    
+    if (result != 0) {
+        sprintf(error_message, "Unabled to get status of session");
+        return result;
+    }
+
+    if (error != 0) {
+        sprintf(error_message, "%s",  strerror(error));
+    }
+    return error;
 }
