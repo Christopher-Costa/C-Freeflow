@@ -1,0 +1,13 @@
+[Unit]
+Description=Freeflow netflow collection for Splunk
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/freeflow/bin/freeflow -c /opt/freeflow/etc/freeflow.cfg
+TimeoutStartSec=0
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
