@@ -21,8 +21,14 @@ GCC needs to be installed.  Only standard libraries, plus openssl-devel are requ
 Running
 -------
 
-    $ bin/freeflow -c etc/freeflow.cfg
-    $ bin/freeflow -c ect/freeflow.cfg -d  (to enable debug logging)
+    $ /opt/freeflow/bin/freeflow -c /opt/freeflow/etc/freeflow.cfg
+    $ /opt/freeflow/bin/freeflow -c /opt/freeflow/etc/freeflow.cfg -d  (to enable debug logging)
+
+or, to run as a service run the following commands:
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable freeflow
+    sudo systemctl start freeflow
 
 Author Information
 ------------------
