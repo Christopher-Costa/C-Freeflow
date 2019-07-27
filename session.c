@@ -168,15 +168,14 @@ int connect_socket(hec_session* session, int worker_num, freeflow_config *config
     bcopy(host->h_addr, &addr.sin_addr, host->h_length);
     addr.sin_port = htons(hec_port);
     if (connect(session->socket_id, (struct sockaddr*) &addr, sizeof(struct sockaddr_in)) < 0) {
-        sprintf(log_message, "Couldn't connect to %s:%d: %s.", hec_addr, hec_port,
-                                                               strerror(errno));
+        sprintf(log_message, "Worker #%d couldn't connect to %s:%d: %s."
+                           , worker_num, hec_addr, hec_port, strerror(errno));
         log_error(log_message, log_queue);
         return -4;
     } 
     else if (config->debug) {
-        sprintf(log_message, 
-                "Worker #%d TCP socket [%d] connected to %s:%d.", 
-                worker_num, session->socket_id, hec_addr, hec_port);
+        sprintf(log_message, "Worker #%d TCP socket [%d] connected to %s:%d."
+                           , worker_num, session->socket_id, hec_addr, hec_port);
         log_debug(log_message, log_queue);
     }
         
@@ -206,7 +205,7 @@ int bind_socket(freeflow_config *config, int log_queue) {
     struct sockaddr_in si_other;
     char log_message[LOG_MESSAGE_SIZE];
     
-    int rc;
+    int result;
     int socket_id;
     
     if ((socket_id = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
@@ -220,8 +219,8 @@ int bind_socket(freeflow_config *config, int log_queue) {
     struct timeval timeout;
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
-    rc = setsockopt(socket_id, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
-    if (rc < 0) {
+    result = setsockopt(socket_id, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+    if (result < 0) {
         sprintf(log_message, "Unable to set socket receive timeout: %s", strerror(errno));
         log_error(log_message, log_queue);
         return -2;
@@ -260,6 +259,18 @@ int initialize_session(hec_session* session, int worker_num, freeflow_config *co
             return -2;
         }
     }
+    return 0;
+}
+
+int reestablish_session(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
+    char log_message[LOG_MESSAGE_SIZE];
+    int result;
+
+    do {
+        sleep(10);
+        result = initialize_session(session, worker_num, config, log_queue);
+    } while (result !=0);
+
     return 0;
 }
 

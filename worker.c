@@ -144,6 +144,9 @@ void handle_worker_sigterm(int sig) {
     keep_working = 0;
 }
 
+void handle_worker_sigpipe(int sig) {
+    /* TODO: figure out the right way to handle this */
+}
 /*
  * Function: handle_signal
  *
@@ -176,6 +179,7 @@ void handle_worker_sigint(int sig) {}
 int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     signal(SIGTERM, handle_worker_sigterm);
     signal(SIGINT, handle_worker_sigint);
+    signal(SIGPIPE, handle_worker_sigpipe);
 
     char log_message[LOG_MESSAGE_SIZE];
     char error_message[LOG_MESSAGE_SIZE];
@@ -218,7 +222,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         }
 
         if (config->debug){
-            sprintf(log_message, "Packet received by worker #%d", worker_num);
+            sprintf(log_message, "Worker #%d accepted packet from queue", worker_num);
             log_debug(log_message, log_queue);
         }
         int results = parse_packet(&packet, payload, config, &session, log_queue);
@@ -226,10 +230,11 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         int bytes_sent = session_write(&session, payload, strlen(payload));
 
         if (bytes_sent < strlen(payload)) {
-            log_warning("Incomplete packet delivery.", log_queue);
+            log_warning("Worker #%d Incomplete packet delivery.", worker_num,log_queue);
         }
         else if (config->debug) {
-            sprintf(log_message,"Packet delivered to HEC [%s].", session.hec->addr);
+            sprintf(log_message,"Worker #%d delivered packet to HEC [%s]."
+                               , worker_num, session.hec->addr);
             log_debug(log_message, log_queue);
         }
 
@@ -256,9 +261,20 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
                 else {
                     sprintf(log_message, "Worker #%d HEC socket error: %s.", worker_num, error_message);
                     log_warning(log_message, log_queue);                
-                    return 0;
+                    sprintf(log_message, "Worker #%d requeuing undelivered packet.", worker_num);
+                    log_info(log_message, log_queue); 
+                    msgsnd(packet_queue, &packet, sizeof(packet_buffer), 0);
+
+                    sprintf(log_message, "Worker #%d attempting to reestablish connection to HEC.", worker_num);
+                    log_info(log_message, log_queue); 
+                    reestablish_session(&session, worker_num, config, log_queue);
+                    sprintf(log_message, "Worker #%d reestablish connection to HEC.  Reentering service."
+                                       , worker_num);
+                    log_info(log_message, log_queue); 
+                    break;
                 }
             }
+            continue;
         }
         int bytes_read_payload = session_read(&session, recv_buffer_payload, PACKET_BUFFER_SIZE);
         printf("read: %d bytes\n", bytes_read_payload);
