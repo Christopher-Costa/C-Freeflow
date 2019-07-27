@@ -20,6 +20,7 @@ static void handle_addr_setting(char *setting, char *value, char *setting_desc);
 static void handle_int_setting(int *setting, char* value, char* setting_desc, int min, int max);
 static void handle_port_setting(int *setting, char* value, char* setting_desc);
 static void handle_hec_servers(freeflow_config* config, char* servers);
+static void handle_hec_tokens(freeflow_config* config, char* tokens);
 
 /*
  * Function: token_count
