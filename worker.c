@@ -276,6 +276,26 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             }
             continue;
         }
+
+        int code = response_code(recv_buffer_header);
+
+        /* If Splunk returns an error, requeue the packet for future delivery and take this worker
+         * out of service for 10s to see if the problem clears.
+         */
+        if (code != 200) {
+            sprintf(log_message, "Worker #%d received error writing to HEC [%d]."
+                               , worker_num, code);
+            log_warning(log_message, log_queue);
+
+            sprintf(log_message, "Worker #%d requeuing undelivered packet.", worker_num);
+            log_info(log_message, log_queue); 
+            msgsnd(packet_queue, &packet, sizeof(packet_buffer), 0);
+            
+            sleep(10);
+            sprintf(log_message, "Worker #%d reentering service.", worker_num);
+            log_info(log_message, log_queue);
+        }
+
         int bytes_read_payload = session_read(&session, recv_buffer_payload, PACKET_BUFFER_SIZE);
         printf("read: %d bytes\n", bytes_read_payload);
         printf("------------\n");

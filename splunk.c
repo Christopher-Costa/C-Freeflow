@@ -17,9 +17,12 @@
  *           -1               Failure to parse
  */
 int response_code(char* response) {
-    char *token;
+    char* token;
     char delim[2] = " ";
-    token = strtok(response, delim);
+    char token_str[PACKET_BUFFER_SIZE];
+
+    strcpy(token_str, response);
+    token = strtok(token_str, delim);
     token = strtok(NULL, delim);
     if (!token) {
         return -1;
@@ -88,33 +91,30 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
     int payload_bytes_read = session_read(session, recv_buffer_payload, PACKET_BUFFER_SIZE);
 
     if (payload_len != bytes_written) {
-        sprintf(log_message, "Failed to write all bytes to Splunk HEC during test.", worker_num);
+        sprintf(log_message, "Worker #%d failed to write all bytes to Splunk HEC during test."
+                           , worker_num);
         log_error(log_message, log_queue);
         return -1;
-        //kill(getppid(), SIGTERM);
     }
     
     if (header_bytes_read < 0) {
         sprintf(log_message, 
-                "Error receiving response from Splunk HEC during test (SSL configuration mismatch?)",
+                "Worker #%d received error response from Splunk HEC during test (SSL configuration mismatch?)",
                 worker_num);
         log_error(log_message, log_queue);
         return -2;
-        //kill(getppid(), SIGTERM);
     }
 
     int code = response_code(recv_buffer_header);
     if (code < 0) {
-        sprintf(log_message, "Received invalid response from Splunk HEC.", worker_num);
+        sprintf(log_message, "Worker #%d received invalid response from Splunk HEC.", worker_num);
         log_error(log_message, log_queue);
         return -3;
-        //kill(getppid(), SIGTERM);
     }
     if (code == 403) {
-        sprintf(log_message, "Splunk worker #%d unable to authenticate with Splunk.", worker_num);
+        sprintf(log_message, "Worker #%d unable to authenticate with Splunk.", worker_num);
         log_error(log_message, log_queue);
         return -4;
-        //kill(getppid(), SIGTERM);
     }
     return 0;
 }
