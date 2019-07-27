@@ -59,13 +59,15 @@ static int receive_packets(int log_queue, freeflow_config *config) {
         return -1;
     }
         
-    int packet_queue;
-    if ((packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message)) < 0) {
-        log_error("Unable to create IPC queue for packets.", log_queue);
+    int packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message, 0);
+    if (packet_queue < 0) {
+        sprintf(log_message, "Unable to create IPC queue for packets: %s.", error_message);        
+        log_error(log_message, log_queue);
         return -2;
     }
     else if (config->debug) {
-        log_debug("Created IPC queue for packets.", log_queue);
+        sprintf(log_message, "Created IPC queue [%d] for packets.", packet_queue);        
+        log_debug(log_message, log_queue);
     }
 
     struct sockaddr_in sender;
@@ -158,7 +160,7 @@ int main(int argc, char** argv) {
 
     int i;
     int log_queue;
-    if ((log_queue = create_queue(config.config_file, LOG_QUEUE, error_message)) < 0) {
+    if ((log_queue = create_queue(config.config_file, LOG_QUEUE, error_message, 0)) < 0) {
         sprintf(log_message, "Unable to create IPC queue for logging: %s.", error_message);        
         log_error(log_message, log_queue);
         return -1;

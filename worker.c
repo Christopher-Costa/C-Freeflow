@@ -196,19 +196,10 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
     sprintf(log_message, "Splunk worker #%d [PID %d] started.", worker_num, getpid());
     log_info(log_message, log_queue);
 
-    int packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message);
+    int packet_queue = create_queue(config->config_file, PACKET_QUEUE, error_message, config->queue_size);
     if (packet_queue < 0) {
         sprintf(log_message, 
                 "Splunk worker #%d [PID %d] unable to open packet queue: %s.", 
-                worker_num, getpid(), error_message);        
-        log_error(log_message, log_queue);
-        kill(getppid(), SIGTERM);
-    }
-
-    int result = set_queue_size(packet_queue, config->queue_size, error_message);
-    if (result < 0) {
-        sprintf(log_message, 
-                "Splunk worker #%d [PID %d] unable to set queue size: %s.", 
                 worker_num, getpid(), error_message);        
         log_error(log_message, log_queue);
         kill(getppid(), SIGTERM);

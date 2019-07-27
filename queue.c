@@ -32,14 +32,22 @@ int queue_length(int queue_id) {
  * Returns:  <queue id>  Success
  *           -1          Failure 
  */
-int create_queue(char* filename, int id, char* error) {
+int create_queue(char* filename, int id, char* error, int queue_size) {
     key_t key = ftok(filename, id);
 
-    int queue_id;
-    queue_id =  msgget(key, 0666 | IPC_CREAT);
+    int queue_id =  msgget(key, 0666 | IPC_CREAT);
     if (queue_id < 0) {
         strcpy(error, strerror(errno));
+        return queue_id;
     }
+
+    if (queue_size > 0) {
+        if (set_queue_size(queue_id, queue_size, error) < 0) {
+            strcpy(error, strerror(errno));
+            return -1;
+        }
+    }
+
     return queue_id;
 }
 
@@ -61,17 +69,8 @@ int delete_queue(int queue_id) {
 }
 
 /*
- * Function: create_queue
+ * Function: set_queue_size
  *
- * Helper function to create an IPC queue and return its Id.
- *
- * Inputs:   int   queue_id      Unique identifier to seed key creation
- *           int   queue_size    Size of the queue to set
- *           char* error         Error string, if operation fails
- *
- * Returns:  0    Success
- *           -1   Couldn't stat the message queue
- *           -2   Couldn't set the queue size
  */
 int set_queue_size(int queue_id, int queue_size, char* error) {
     struct msqid_ds ds = {0};
