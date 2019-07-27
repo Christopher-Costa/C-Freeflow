@@ -8,7 +8,9 @@
 #include "config.h"
 #include "session.h"
 
+static int ssl_initialize(hec_session* session, int worker_num, freeflow_config* config, int log_queue);
 static int enable_keepalives(int socket_id, char* error);
+static int connect_socket(hec_session* session, int worker_num, freeflow_config *config, int log_queue);
 
 /*
  * Function: ssl_initialize
@@ -22,7 +24,7 @@ static int enable_keepalives(int socket_id, char* error);
  * Returns:  <SSL object>     Success
  *           NULL             Failure
  */
-int ssl_initialize(hec_session* session, int worker_num, freeflow_config* config, int log_queue) {
+static int ssl_initialize(hec_session* session, int worker_num, freeflow_config* config, int log_queue) {
     const SSL_METHOD *method;
     SSL_CTX *ctx;
     char log_message[LOG_MESSAGE_SIZE];
@@ -89,6 +91,7 @@ static int enable_keepalives(int socket_id, char* error) {
         sprintf(error, "Unable to enable TCP keepalive: %s", strerror(errno));
         return -1;
     }
+
     int idle = 60;
     rc = setsockopt(socket_id, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(int));
     if (rc < 0) {
@@ -110,7 +113,8 @@ static int enable_keepalives(int socket_id, char* error) {
  * Function: connect_socket
  *
  * Initialize and establish a TCP connection to a Splunk HTTP Event Collector
- * using information in the 'config' object.  Return an error if unsuccessful.
+ * using information in the configuration object.  Return an error 
+ * if unsuccessful.
  *
  * Inputs:   int              worker_num    Id of the worker process
  *           freeflow_config* config*       Configuration object
@@ -123,7 +127,7 @@ static int enable_keepalives(int socket_id, char* error) {
  *           -4             Couldn't connect to server
  *           -5             Couldn't enable recv timeout
  */
-int connect_socket(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
+static int connect_socket(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     struct sockaddr_in addr;
     struct hostent *host;
     char log_message[LOG_MESSAGE_SIZE];
@@ -190,7 +194,7 @@ int connect_socket(hec_session* session, int worker_num, freeflow_config *config
  * Function: bind_socket
  *
  * Initialize and bind a UDP socket for receiving Netflow using information 
- * passed in the 'config' object.  Return an error if unsuccessful.
+ * passed in the configuration object.  Return an error if unsuccessful.
  *
  * Inputs:   freeflow_config* config*       Configuration object
  *           int              log_queue     Id of IPC queue for logging
@@ -245,6 +249,22 @@ int bind_socket(freeflow_config *config, int log_queue) {
     return(socket_id);
 }
 
+/*
+ * Function: initialize_session
+ *
+ * Initialize either a normal TCP or SSL connection to a Splunk HTTP Event Collector
+ * based on the information in the configuration object.  Return an error
+ * if unsuccessful.
+ *
+ * Inputs:   hec_session*     session       Object to store session information
+ *           int              worker_num    Id of the worker process
+ *           freeflow_config* config*       Configuration object
+ *           int              log_queue     Id of IPC queue for logging
+ *
+ * Returns:  0    Success
+ *           -1   Couldn't create socket object
+ *           -2   Couldn't initialize SSL
+ */
 int initialize_session(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     char log_message[LOG_MESSAGE_SIZE];
 
@@ -262,6 +282,21 @@ int initialize_session(hec_session* session, int worker_num, freeflow_config *co
     return 0;
 }
 
+/*
+ * Function: reestablish_session
+ *
+ * Attempt to reinitialize a Splunk HTTP Event Collector session that failed during
+ * the program's operations.  This process will attempt to establish a new connection
+ * every 10s indefinitely, effectively blocking the calling process until the condition 
+ * clears.
+ *
+ * Inputs:   hec_session*     session       Object to store session information
+ *           int              worker_num    Id of the worker process
+ *           freeflow_config* config*       Configuration object
+ *           int              log_queue     Id of IPC queue for logging
+ *
+ * Returns:  0    Success
+ */
 int reestablish_session(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     char log_message[LOG_MESSAGE_SIZE];
     int result;
@@ -269,11 +304,25 @@ int reestablish_session(hec_session* session, int worker_num, freeflow_config *c
     do {
         sleep(10);
         result = initialize_session(session, worker_num, config, log_queue);
-    } while (result !=0);
+    } while (result != 0);
 
     return 0;
 }
 
+/*
+ * Funtion: session_read
+ *
+ * Wrapper function to call the appropiate socket or SSL read function
+ * for this particular session.  Sets the message variable with the
+ * message read.
+ *
+ * Inputs:   hec_session*  session       Object to store session information
+ *           char*         message       Message read from the session
+ *           int           message_len   Size of the message object
+ *
+ * Returns:  <number of bytes read>   Success
+ *           <negative integer>       Failure
+ */
 int session_read(hec_session* session, char* message, int message_len) {
     memset(message, 0, message_len);
 
@@ -285,6 +334,20 @@ int session_read(hec_session* session, char* message, int message_len) {
     }
 }
 
+/*
+ * Funtion: session_write
+ *
+ * Wrapper function to call the appropiate socket or SSL write function
+ * for this particular session.  Sends the bytes set in the message
+ * variable.
+ *
+ * Inputs:   hec_session*  session       Object to store session information
+ *           char*         message       Message read from the session
+ *           int           message_len   Size of the message object
+ *
+ * Returns:  <number of bytes sent>   Success
+ * Returns:  <negative integer>       Failure
+ */
 int session_write(hec_session* session, char* message, int message_len) {
     if (session->is_ssl) {
         return SSL_write(session->ssl_session, message, message_len);
@@ -294,6 +357,18 @@ int session_write(hec_session* session, char* message, int message_len) {
     }
 }
 
+/*
+ * Funtion: session_status
+ *
+ * Wrapper function to call the appropiate socket or SSL read function
+ * for this particular session.
+ *
+ * Inputs:   hec_session*  session         Object to store session information
+ *           char*         error_message   Error message, if any
+ *
+ * Returns:  0                   No error
+ * Returns:  <negative integer>  Error code
+ */
 int session_status(hec_session* session, char* error_message) {
     int error = 0;
     socklen_t len = sizeof(error);
