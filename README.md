@@ -14,8 +14,8 @@ Compiling and Installing
 
 GCC needs to be installed.  Only standard libraries, plus openssl-devel are required to compile.  Run the following commands:
 
-  make
-  make install
+    make
+    make install
 
 
 Running
