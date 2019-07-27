@@ -229,7 +229,8 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             log_warning("Incomplete packet delivery.", log_queue);
         }
         else if (config->debug) {
-            log_debug("Packet delivered to HEC.", log_queue);
+            sprintf(log_message,"Packet delivered to HEC [%s].", config->hec_server[session.hec_instance].addr);
+            log_debug(log_message, log_queue);
         }
 
         int bytes_read_header = session_read(&session, recv_buffer_header, PACKET_BUFFER_SIZE);;
