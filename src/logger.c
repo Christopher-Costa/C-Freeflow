@@ -3,9 +3,11 @@
 #include <string.h>   /* Provides: strcpy */
 #include <time.h>     /* Provides: time_t */
 #include <sys/msg.h>  /* Provides: ftok */
+#include <unistd.h>   /* Provides: getpid */
 #include <signal.h>
 #include "freeflow.h"
 #include "logger.h"
+#include "queue.h"
 
 static int keep_logging = 1;
 

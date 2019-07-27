@@ -4,7 +4,7 @@
 #include <errno.h>    /* Provides: strerror */
 #include "queue.h"
 
-static set_queue_size(int queue_id, int queue_size, char* error);
+static int set_queue_size(int queue_id, int queue_size, char* error);
 
 /*
  * Function: queue_length
@@ -82,7 +82,7 @@ int delete_queue(int queue_id) {
  *           -2  Failure to set the queue size.
  */
 static int set_queue_size(int queue_id, int queue_size, char* error) {
-    struct msqid_ds ds = {0};
+    struct msqid_ds ds = {{0}};
     int rc;
     rc = msgctl(queue_id, IPC_STAT, &ds);
     if (rc < 0) {

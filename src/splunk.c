@@ -3,6 +3,7 @@
 #include "freeflow.h"
 #include "config.h"
 #include "session.h"
+#include "logger.h"
 #include "splunk.h"
 
 static int empty_hec_payload(char* header, hec* server);
@@ -96,7 +97,6 @@ static int empty_hec_payload(char* header, hec* server) {
 int test_connectivity(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     char payload[PAYLOAD_BUFFER_SIZE];
     char log_message[LOG_MESSAGE_SIZE];
-    char error_message[LOG_MESSAGE_SIZE];
     char recv_buffer_header[PACKET_BUFFER_SIZE];
     char recv_buffer_payload[PACKET_BUFFER_SIZE];
     
@@ -118,7 +118,7 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
         return -1;
     }
     
-    if (header_bytes_read < 0) {
+    if (header_bytes_read < 0 || payload_bytes_read < 0) {
         sprintf(log_message, 
                 "Worker #%d received error response from Splunk HEC during test (SSL mismatch?)",
                 worker_num);

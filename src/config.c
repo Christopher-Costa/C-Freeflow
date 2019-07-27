@@ -2,6 +2,7 @@
 #include <string.h>    /* Provides: strcpy */
 #include <stdlib.h>    /* Provides: malloc */
 #include <unistd.h>    /* Provides: getopt */
+#include <ctype.h>     /* Provides: isprint */
 #include <arpa/inet.h> /* Provides: AF_INET */
 #include "config.h"
 
@@ -421,7 +422,6 @@ void read_configuration(freeflow_config* config) {
  */
 void parse_command_args(int argc, char** argv, freeflow_config* config) {
     int option;
-    int index;
     opterr = 0;
 
     config->debug = 0;

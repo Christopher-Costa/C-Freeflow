@@ -1,5 +1,6 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "config.h"
 
 typedef struct hec_session {
     int  is_ssl;

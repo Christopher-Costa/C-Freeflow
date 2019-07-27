@@ -4,12 +4,15 @@
 #include <netdb.h>       /* Provides: gethostbyname */
 #include <arpa/inet.h>   /* Provides: inet_ntoa */
 #include <signal.h>      /* Provides: signal */
+#include <unistd.h>      /* Provides: close */
+#include <sys/wait.h>    /* Provides: waitpid */
+#include <sys/msg.h>     /* Provides: msgsnd */
 #include "freeflow.h"
 #include "netflow.h"
-#include "config.h"
 #include "session.h"
 #include "queue.h"
 #include "worker.h"
+#include "logger.h"
 
 static int keep_listening = 1;
 
@@ -71,7 +74,7 @@ static int receive_packets(int log_queue, freeflow_config *config) {
     }
 
     struct sockaddr_in sender;
-    int socket_len = sizeof(sender);
+    socklen_t socket_len = sizeof(sender);
 
     packet_buffer message;
     message.mtype = 2;
@@ -79,8 +82,7 @@ static int receive_packets(int log_queue, freeflow_config *config) {
     /* Continue receiving packets until signalled to stop */
     while(keep_listening) {
         int bytes_recv;
-        bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, 
-                              (struct sockaddr*)&sender, &socket_len);
+        bytes_recv = recvfrom(socket_id, packet, PACKET_BUFFER_SIZE, 0, (struct sockaddr*)&sender, &socket_len);
         if (bytes_recv > 0) {
             if (config->debug) {
                 char s[IPV4_ADDR_SIZE];
@@ -182,4 +184,6 @@ int main(int argc, char** argv) {
 
     receive_packets(log_queue, &config);
     clean_up_processes(&config, workers, logger_pid, log_queue);
+
+    return 0;
 }

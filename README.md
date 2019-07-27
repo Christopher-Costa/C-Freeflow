@@ -14,7 +14,7 @@ Compiling
 
 GCC needs to be installed.  Only standard libraries, plus openssl-devel are required to compile.
 
-    gcc -lrt -lssl -lcrypto -Ilib src/freeflow.c src/logger.c src/queue.c src/config.c src/session.c src/worker.c src/splunk.c -o bin/freeflow
+    gcc -Wall  -lrt -lssl -lcrypto -Ilib src/freeflow.c src/logger.c src/queue.c src/config.c src/session.c src/worker.c src/splunk.c -o bin/freeflow
 
 Running
 -------

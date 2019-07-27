@@ -2,11 +2,14 @@
 #include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
+#include <unistd.h>      /* Provides: read, write */
+#include <arpa/inet.h>   /* Provides: inet_addr */
 #include <errno.h>
 #include <netinet/tcp.h>
 #include "freeflow.h"
 #include "config.h"
 #include "session.h"
+#include "logger.h"
 
 static int ssl_initialize(hec_session* session, int worker_num, freeflow_config* config, int log_queue);
 static int enable_keepalives(int socket_id, char* error);
@@ -206,7 +209,6 @@ static int connect_socket(hec_session* session, int worker_num, freeflow_config 
  */
 int bind_socket(freeflow_config *config, int log_queue) {
     struct sockaddr_in si_me;
-    struct sockaddr_in si_other;
     char log_message[LOG_MESSAGE_SIZE];
     
     int result;
@@ -298,7 +300,6 @@ int initialize_session(hec_session* session, int worker_num, freeflow_config *co
  * Returns:  0    Success
  */
 int reestablish_session(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
-    char log_message[LOG_MESSAGE_SIZE];
     int result;
 
     do {

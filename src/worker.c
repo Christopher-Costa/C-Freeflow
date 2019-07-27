@@ -2,14 +2,17 @@
 #include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include <netdb.h>       /* Provides: gethostbyname */
+#include <unistd.h>      /* Provides: close */
 #include <arpa/inet.h>   /* Provides: inet_ntoa */
 #include <sys/msg.h>     /* Provides: IPC_NOWAIT */
 #include <signal.h>
 #include "freeflow.h"
+#include "worker.h"
 #include "netflow.h"
-#include "config.h"
 #include "session.h"
 #include "queue.h"
+#include "logger.h"
+#include "splunk.h"
 
 int keep_working = 1;
 int sigpipe_caught = 0;
@@ -130,7 +133,7 @@ static int parse_packet(packet_buffer* packet, char* payload, freeflow_config* c
     hec_header(session->hec, (int)strlen(splunk_payload), payload);
     strcat(payload, splunk_payload);
     if (config->debug) {
-        sprintf(log_message, "HTTP message of length %d assembled to send to HEC.", strlen(payload));
+        sprintf(log_message, "HTTP message of length %d assembled to send to HEC.", (int)strlen(payload));
         log_debug(log_message, log_queue);
     } 
     return 0;
@@ -242,12 +245,12 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             sprintf(log_message, "Worker #%d accepted packet from queue", worker_num);
             log_debug(log_message, log_queue);
         }
-        int results = parse_packet(&packet, payload, config, &session, log_queue);
+        parse_packet(&packet, payload, config, &session, log_queue);
 
         int bytes_sent = session_write(&session, payload, strlen(payload));
 
         if (bytes_sent < strlen(payload)) {
-            log_warning("Worker #%d Incomplete packet delivery.", worker_num,log_queue);
+            log_warning("Worker #%d Incomplete packet delivery.", log_queue);
         }
         else if (config->debug) {
             sprintf(log_message,"Worker #%d delivered packet to HEC [%s]."
@@ -319,7 +322,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
             log_info(log_message, log_queue);
         }
 
-        int bytes_read_payload = session_read(&session, recv_buffer_payload, PACKET_BUFFER_SIZE);
+        session_read(&session, recv_buffer_payload, PACKET_BUFFER_SIZE);
     }
     
     close(session.socket_id);

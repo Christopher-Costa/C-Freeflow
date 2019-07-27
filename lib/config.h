@@ -1,3 +1,5 @@
+#ifndef CONFIG_H
+#define CONFIG_H
 #define CONFIG_KEY_SIZE    128
 #define CONFIG_VALUE_SIZE  1024
 #define CONFIG_LINE_SIZE   1024
@@ -30,3 +32,4 @@ typedef struct freeflow_config {
 
 void parse_command_args(int argc, char** argv, freeflow_config* config_obj);
 void read_configuration(freeflow_config* config_obj);
+#endif
