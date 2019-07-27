@@ -19,8 +19,8 @@ static void write_log(FILE* fd, logbuf* log);
 /*
  * Function: handle_sigterm
  *
- * Toggle the keep_logging variable to allow the main logging routing to 
- * stop and stop cleanly after emptying the logging queue.
+ * Toggle the keep_logging variable to instruct  the main logging routine to 
+ * stop cleanly after emptying the logging queue.
  *
  * Inputs:   int sig    Signal being caught (SIGTERM)
  *
@@ -41,8 +41,7 @@ static void handle_sigterm(int sig) {
  *
  * Returns:  None
  */
-static void handle_sigint(int sig) {
-}
+static void handle_sigint(int sig) {}
 
 /*
  * Function: set_current_time
@@ -54,16 +53,17 @@ static void handle_sigint(int sig) {
  *
  * Returns:  None
  */
-void set_current_time(char* current_time) {
+static void set_current_time(char* current_time) {
     time_t now;
     time(&now);
     struct tm* time_info = localtime(&now);
-    sprintf(current_time, "%4d/%02d/%02d %02d:%02d:%02d", time_info->tm_year + 1900,
-                                                          time_info->tm_mon + 1,
-                                                          time_info->tm_mday,
-                                                          time_info->tm_hour,
-                                                          time_info->tm_min,
-                                                          time_info->tm_sec);
+    sprintf(current_time, "%4d/%02d/%02d %02d:%02d:%02d"
+                        , time_info->tm_year + 1900
+                        , time_info->tm_mon + 1
+                        , time_info->tm_mday
+                        , time_info->tm_hour
+                        , time_info->tm_min
+                        , time_info->tm_sec);
 }
 
 /*
@@ -172,7 +172,8 @@ static void write_log(FILE* fd, logbuf* log) {
  * 
  * Main logging function, which handles log file opening and closure,
  * and reading new messages off the IPC logging queue and having them
- * written to disk.
+ * written to disk.  The logger will run until a signal is received 
+ * and while there are still messages in the queue to process.
  *
  * Inputs:   char* log_file    The filesystem path of the log file
  *           int   queue_id    Id of the IPC queue for logging
