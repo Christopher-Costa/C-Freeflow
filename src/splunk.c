@@ -1,10 +1,11 @@
 #include <stdio.h>       /* Provides: sprintf */
-#include <stdlib.h>      /* Provides: malloc, free, exit */
 #include <string.h>      /* Provides: strcpy, strcat, memcpy */
 #include "freeflow.h"
 #include "config.h"
 #include "session.h"
 #include "splunk.h"
+
+static int empty_hec_payload(char* header, hec* server);
 
 /*
  * Function: response_code
@@ -65,13 +66,33 @@ int hec_header(hec* server, int content_length, char* header) {
  * Inputs:   hec*       server          Splunk HEC server object
  *           char*      header          Header string
  *
- * Returns:  0          Success
+ * Returns:  <length of header>  Success
  */
-int empty_hec_payload(char* header, hec* server) {
+static int empty_hec_payload(char* header, hec* server) {
     hec_header(server, 0, header);
     return strlen(header);
 }
 
+/*
+ * Function: test_connectivity
+ *
+ * Called after a session has been established, to verify connectivity to the
+ * Splunk HTTP Event Collector.  Send an empty message to verify the expected
+ * response code is received.   This serves the purpose of validating that the
+ * authentication token is valid, and preventing Splunk from tearing down the
+ * session prematurely if no data is sent immediately.
+ *
+ * Inputs:   hec_session*      session       Object to store session information
+ *           int               worker_num    Id of the worker process
+ *           freeflow_config*  config        Pointer to configuration object
+ *           int               log_queue     Id of IPC queue for logging
+ *
+ * Returns:  0   Success
+ *           -1  Incomplete transmission
+ *           -2  Error received when sending transmissionk
+ *           -3  Unexpected response code received from Splunk
+ *           -4  Authentication failure
+ */    
 int test_connectivity(hec_session* session, int worker_num, freeflow_config *config, int log_queue) {
     char payload[PAYLOAD_BUFFER_SIZE];
     char log_message[LOG_MESSAGE_SIZE];
@@ -99,7 +120,7 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
     
     if (header_bytes_read < 0) {
         sprintf(log_message, 
-                "Worker #%d received error response from Splunk HEC during test (SSL configuration mismatch?)",
+                "Worker #%d received error response from Splunk HEC during test (SSL mismatch?)",
                 worker_num);
         log_error(log_message, log_queue);
         return -2;
