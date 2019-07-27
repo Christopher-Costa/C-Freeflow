@@ -14,13 +14,13 @@ Compiling
 
 GCC needs to be installed.  Only standard libraries, plus openssl-devel are required to compile.
 
-    gcc freeflow.c logger.c queue.c config.c session.c worker.c splunk.c -o freeflow.out -lrt -lssl -lcrypto
+    gcc src/freeflow.c src/logger.c src/queue.c src/config.c src/session.c src/worker.c src/splunk.c -o bin/freeflow -lrt -lssl -lcrypto -Ilib
 
 Running
 -------
 
-    $ freeflow.out -c freeflow.cfg
-    $ freeflow.out -c freeflow.cfg -d    (to enable debug logging)
+    $ bin/freeflow -c etc/freeflow.cfg
+    $ bin/freeflow -c ect/freeflow.cfg -d  (to enable debug logging)
 
 Author Information
 ------------------
