@@ -16,12 +16,12 @@ static int keep_listening = 1;
 static void handle_signal(int sig);
 static int receive_packets(int log_queue, freeflow_config *config);
 static void handle_signal(int sig);
-static void clean_up(freeflow_config* config, pid_t workers[], pid_t logger_pid, int log_queue);
+static void clean_up_processes(freeflow_config* config, pid_t workers[], pid_t logger_pid, int log_queue);
 
 /*
  * Function: handle_signal
  *
- * Handle SIGINT and SIGTERM signals by setting toggling the 'keep_listening'
+ * Handle SIGINT and SIGTERM signals by toggling the 'keep_listening'
  * variable.  This variable controls the main while loop, and will allow the
  * program to end gracefully and ensure everything is cleaned up properly.
  *
@@ -107,8 +107,8 @@ static int receive_packets(int log_queue, freeflow_config *config) {
 /*
  * Function: clean_up_processes
  *
- * Gracefully iterate through all working and logging processes, terminate
- * them and waiting for them to exit gracefully.
+ * Iterate through all working and logging processes, terminate them and 
+ * wait for them to exit gracefully.
  *
  * Inputs:  freeflow_config *config      Pointer to the configuration object. 
  *          pid_t           workers[]    Array of worker process PIDs
@@ -140,8 +140,8 @@ static void clean_up_processes(freeflow_config* config, pid_t workers[],
  * Function: main
  *
  * Initialize the program by reading and processing the command line arguments 
- * and the program configuration file, fork additional processes to handle 
- * logging and packet processing and transmission to Splunk.  The main process 
+ * and the program configuration file.  Fork additional processes to handle 
+ * logging and packet processing/transmission to Splunk.  The main process 
  * will handle send and receive functions for the Netflow UDP socket.
  * 
  * Return:  0   Success
@@ -181,6 +181,5 @@ int main(int argc, char** argv) {
     }
 
     receive_packets(log_queue, &config);
-
     clean_up_processes(&config, workers, logger_pid, log_queue);
 }
