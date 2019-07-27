@@ -26,8 +26,8 @@ static void handle_hec_tokens(freeflow_config* config, char* tokens);
  * Function: token_count
  *
  * Helper function that takes a string and a character delimiter as input
- * and computes how many distinct string objects would be created by
- * tokenize the string with that delimiter.
+ * and computes how many distinct string objects would be created if
+ * the string was tokenized with that delimiter.
  *
  * Inputs:   char* str       The string to tokenize
  *           char  delim     The token delimiter
@@ -151,8 +151,8 @@ static void handle_addr_setting(char *setting, char *value, char *setting_desc) 
  * Function: handle_int_setting
  *
  * Used to validate and set a configuration setting intended to be an
- * integer.  Update the configuration object (passed by reference)
- * or generate an error.
+ * integer with provided minimum and maximum limits.  Update the 
+ * configuration object (passed by reference) or generate an error.
  *
  * Inputs:   char* setting         Pointer to configuration object being set
  *           char* value           Value being set
@@ -182,8 +182,8 @@ static void handle_int_setting(int *setting, char* value, char* setting_desc,
  * Function: handle_port_setting
  *
  * Wrapper function to validate and set a configuration setting intended 
- * to be a network port.  Update the configuration object (passed by 
- * reference) or generate an error.
+ * to be a network port within the allowable range of 1 to 65535.  Update 
+ * the configuration object (passed by reference) or generate an error.
  *
  * Inputs:   char* setting         Pointer to configuration object being set
  *           char* value           Value being set
@@ -198,8 +198,9 @@ static void handle_port_setting(int *setting, char* value, char* setting_desc) {
 /*
  * Function: initialize_hec_servers
  *
- * Allocate an appropriate amount of memory for all provided HEC servers if
- * needed, or verify that memory has already been allocated properly.
+ * Allocate an appropriate amount of memory for all HEC servers provided in
+ * the configuration file,  or verify that memory has already been allocated 
+ * properly.
  *
  * Inputs:   freeflow_config* config    Pointer to configuration object
  *           char*            value     Value being set
@@ -306,7 +307,7 @@ static void initialize_configuration(freeflow_config* config) {
  * Function: verify_configuration
  *
  * Checks all mandatory configuration settings to make sure valid settings have
- * been supplied.  Generates an error for improperly invalid settings.
+ * been supplied.  Generates an error for invalid settings.
  *
  * Inputs:   freeflow_config* config    Pointer to configuration object
  *
