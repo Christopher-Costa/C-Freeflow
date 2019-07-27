@@ -12,6 +12,7 @@
 #include "queue.h"
 
 int keep_working = 1;
+int sigpipe_caught = 0;
 
 /*
  * Function: parse_packet
@@ -145,7 +146,7 @@ void handle_worker_sigterm(int sig) {
 }
 
 void handle_worker_sigpipe(int sig) {
-    /* TODO: figure out the right way to handle this */
+    sigpipe_caught = 1;
 }
 /*
  * Function: handle_signal
@@ -240,14 +241,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
 
         int bytes_read_header = session_read(&session, recv_buffer_header, PACKET_BUFFER_SIZE);
 
-        /* If no bytes were read, we may have a problem . */
-        if (bytes_read_header <= 0) {
+        /* If a SIGPIPE was signalled, or no bytes were read, we may have a problem . */
+        if ((bytes_read_header <= 0) || (sigpipe_caught)) {
             int retry_count = 1;
-            while (keep_working && (bytes_read_header <= 0)) {
+            while (keep_working && ((bytes_read_header <= 0) || (sigpipe_caught))) {
                 int status = session_status(&session, error_message);
 
                 /* If the session is still up, keep trying */
-                if (status == 0) {
+                if ((status == 0) && !(sigpipe_caught)) {
                     sprintf(log_message, "Worker #%d received no response from HEC.  Retrying [#%d]."
                                        , worker_num, retry_count);
                     log_warning(log_message, log_queue);
@@ -259,8 +260,12 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
                 
                 /* If it isn't, requeue the packet so it may be delivered by another worker */
                 else {
+                    if (sigpipe_caught) {
+                        strcpy(error_message, "Not connected");
+                    }
                     sprintf(log_message, "Worker #%d HEC socket error: %s.", worker_num, error_message);
                     log_warning(log_message, log_queue);                
+
                     sprintf(log_message, "Worker #%d requeuing undelivered packet.", worker_num);
                     log_info(log_message, log_queue); 
                     msgsnd(packet_queue, &packet, sizeof(packet_buffer), 0);
@@ -268,12 +273,14 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
                     sprintf(log_message, "Worker #%d attempting to reestablish connection to HEC.", worker_num);
                     log_info(log_message, log_queue); 
                     reestablish_session(&session, worker_num, config, log_queue);
+
                     sprintf(log_message, "Worker #%d reestablish connection to HEC.  Reentering service."
                                        , worker_num);
                     log_info(log_message, log_queue); 
                     break;
                 }
             }
+            sigpipe_caught = 0;
             continue;
         }
 
@@ -297,10 +304,6 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
         }
 
         int bytes_read_payload = session_read(&session, recv_buffer_payload, PACKET_BUFFER_SIZE);
-        printf("read: %d bytes\n", bytes_read_payload);
-        printf("------------\n");
-        printf("%s\n", recv_buffer_header);
-        printf("%s\n\n", recv_buffer_payload);
     }
     
     close(session.socket_id);
