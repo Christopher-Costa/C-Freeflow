@@ -13,6 +13,7 @@ freeflow:
 install: freeflow
 	install -m 0755 -d $(DESTDIR)$(PREFIX)/bin
 	install -m 0755 -d $(DESTDIR)$(PREFIX)/etc
+	install -m 0755 -d $(DESTDIR)$(PREFIX)/var/log/
 	install -m 0755 bin/freeflow $(DESTDIR)$(PREFIX)/bin 
 	install -m 0644 etc/freeflow.cfg $(DESTDIR)$(PREFIX)/etc
 
