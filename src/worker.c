@@ -14,6 +14,12 @@
 int keep_working = 1;
 int sigpipe_caught = 0;
 
+static void handle_worker_sigterm(int sig);
+static void handle_worker_sigpipe(int sig);
+static void handle_worker_sigint(int sig);
+static int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
+                 hec_session* session, int log_queue);
+
 /*
  * Function: parse_packet
  *
@@ -28,7 +34,7 @@ int sigpipe_caught = 0;
  *
  * Returns:  0                 Success
  */
-int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
+static int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config, 
                  hec_session* session, int log_queue) {
 
     char log_message[LOG_MESSAGE_SIZE];
@@ -141,25 +147,35 @@ int parse_packet(packet_buffer* packet, char* payload, freeflow_config* config,
  *
  * Returns:  None
  */
-void handle_worker_sigterm(int sig) {
+static void handle_worker_sigterm(int sig) {
     keep_working = 0;
 }
 
-void handle_worker_sigpipe(int sig) {
-    sigpipe_caught = 1;
-}
 /*
- * Function: handle_signal
+ * Function: handle_worker_sigpipe
  *
- * Handle SIGINT signals by setting toggling the 'keep_listening' variable.  
- * This variable controls the main while loop, and will allow the
- * program to end gracefully and ensure everything is cleaned up properly.
+ * Handle SIGPIPE signals by toggling the 'sigpipe_caught' variable.  
+ * This variable indicates that a the function sent data to a closed socket, and 
+ * for the error handling functions to take appropraite action.
  *
  * Inputs:   int sig        The signal being passed.  Currently unused.
  *
  * Returns:  None
  */
-void handle_worker_sigint(int sig) {}
+static void handle_worker_sigpipe(int sig) {
+    sigpipe_caught = 1;
+}
+/*
+ * Function: handle_worker_sigint
+ *
+ * Do nothing.  Simply catch the SIGINT and take no action, to allow the 
+ * main program to orchestrate the cleanup among all processes.
+ *
+ * Inputs:   int sig        The signal being passed.  Currently unused.
+ *
+ * Returns:  None
+ */
+static void handle_worker_sigint(int sig) {}
 
 /*
  * Function: splunk_worker
