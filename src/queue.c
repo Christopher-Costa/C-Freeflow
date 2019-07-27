@@ -4,6 +4,8 @@
 #include <errno.h>    /* Provides: strerror */
 #include "queue.h"
 
+static set_queue_size(int queue_id, int queue_size, char* error);
+
 /*
  * Function: queue_length
  * 
@@ -23,7 +25,9 @@ int queue_length(int queue_id) {
 /*
  * Function: create_queue
  * 
- * Helper function to create an IPC queue and return its Id.
+ * Create an IPC queue using the name of the configuration file and a
+ * unique Id number.  Returns the id of the queue, or an error if
+ * the queue couldn't be created.
  *
  * Inputs:   char* filename    name of a file to seed key creation
  *           int   id          Unique identifier to seed key creation
@@ -54,7 +58,7 @@ int create_queue(char* filename, int id, char* error, int queue_size) {
 /*
  * Function: delete_queue
  * 
- * Helper function to delete an IPC queue.
+ * Delete an IPC queue specified by the provided id.
  *
  * Inputs:   int   queue_id    Id of queue to delete
  *
@@ -71,8 +75,13 @@ int delete_queue(int queue_id) {
 /*
  * Function: set_queue_size
  *
+ * Set the size of a IPC queue to the provided value.
+ *
+ * Returns:  0   Success
+ *           -1  Couldn't load the specified queue.
+ *           -2  Failure to set the queue size.
  */
-int set_queue_size(int queue_id, int queue_size, char* error) {
+static int set_queue_size(int queue_id, int queue_size, char* error) {
     struct msqid_ds ds = {0};
     int rc;
     rc = msgctl(queue_id, IPC_STAT, &ds);
