@@ -30,6 +30,14 @@ or, to run as a service run the following commands:
     sudo systemctl enable freeflow
     sudo systemctl start freeflow
 
+Building an RPM
+---------------
+
+YMMV, but these are the steps I use to build RPM files in a test environment where the rpmbuild base directory is /root/rpmbuild and C-Freeflow was cloned into /root.  Adjust accordingly for your environment.
+
+    tar -czvf /root/rpmbuild/SOURCES/freeflow-1.0.tar.gz -C /root/ C-Freeflow/ --transform s/C-Freeflow/freeflow-1.0/
+    rpmbuild -ba /root/C-Freeflow/rpmbuild/freeflow.spec
+
 Author Information
 ------------------
 
