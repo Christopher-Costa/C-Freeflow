@@ -9,6 +9,7 @@
 static int token_count(char* str, char delim);
 static int is_ip_address(char *addr);
 static int is_integer(char *num);
+static int is_valid_hostname(char *hostname);
 
 static void setting_error(char *setting_desc, char* value);
 static void setting_empty(char* setting_desc);
@@ -87,9 +88,49 @@ static int is_integer(char *num) {
     int i;
 
     /* Recurse through the string char by char and return if a 
-       a character other than '0' through '9' is encountered. */ 
+       non-digit is encountered. */ 
     for (i = 0; i < strlen(num); i++) {
-        if ((num[i] - '0' < 0) || (num[i] - '0' > 9)) {
+        if (!isdigit(num[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/*
+ * Function: is_valid_hostname
+ *
+ * Helper function that checks a string and verifies whether or not it
+ * takes the form of an RFC 952 compliant Internet hostname/FQDN.
+ *
+ * Inputs:   char* hostname  The string to check
+ *
+ * Returns:  1   String is a valid hostname/FQDN
+ *           0   String is not a valid hostname/FQDN
+ */
+static int is_valid_hostname(char *hostname) {
+    int i;
+    int host_len = strlen(hostname);
+
+    /* Single character names are not allowed. */
+    if (host_len == 1){
+        return 0;
+    }
+
+    /* The first character must be an alpha character. */
+    if (!isalpha(hostname[0])) {
+        return 0;
+    }
+
+    /* The last character must not be a minus sign or period */
+    if (hostname[host_len-1] == '-' || hostname[host_len-1] == '.') {
+        return 0;
+    }
+
+    /* Characters must be 'A-Z','a-z', '0-9', '.', or '-' */ 
+    for (i = 0; i < host_len; i++) {
+        if (!isalpha(hostname[i]) && !isdigit(hostname[i]) && 
+            !(hostname[i] == '-') && !(hostname[i] == '.')) {
             return 0;
         }
     }
@@ -141,7 +182,7 @@ static void setting_empty(char* setting_desc) {
  * Returns:  None
  */
 static void handle_addr_setting(char *setting, char *value, char *setting_desc) {
-        if (!is_ip_address(value)) {
+        if (!is_ip_address(value) && !is_valid_hostname(value)) {
             setting_error(setting_desc, value);
         }
 
