@@ -293,7 +293,7 @@ int splunk_worker(int worker_num, freeflow_config *config, int log_queue) {
                     log_info(log_message, log_queue); 
                     reestablish_session(&session, worker_num, config, log_queue);
 
-                    sprintf(log_message, "Worker #%d reestablish connection to HEC.  Reentering service."
+                    sprintf(log_message, "Worker #%d reestablished connection to HEC.  Reentering service."
                                        , worker_num);
                     log_info(log_message, log_queue); 
                     break;
