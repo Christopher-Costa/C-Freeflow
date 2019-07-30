@@ -8,9 +8,10 @@
 #define LOG_FILE_SIZE      1024
 #define CONFIG_FILE_SIZE   1024
 #define IPV4_ADDR_SIZE     16
+#define HOSTNAME_SIZE      512
 
 typedef struct hec {
-    char addr[IPV4_ADDR_SIZE];
+    char addr[HOSTNAME_SIZE];
     int port;
     char token[HEC_TOKEN_SIZE];
 } hec;
