@@ -93,8 +93,11 @@ static int receive_packets(int log_queue, freeflow_config *config) {
             message.packet_len = bytes_recv;
             strcpy(message.sender, inet_ntoa(sender.sin_addr));
             memcpy(message.packet, packet, bytes_recv);
-            msgsnd(packet_queue, &message, sizeof(packet_buffer), 0); 
-            if (config->debug) {
+            if (msgsnd(packet_queue, &message, sizeof(packet_buffer), 0)) {
+                strcpy(log_message, "Unable to queue packet for processing.");
+                log_warning(log_message, log_queue);
+            }
+            else if (config->debug) {
                 sprintf(log_message, "Packet sent to packet queue [%d].", packet_queue);
                 log_debug(log_message, log_queue);
             }
