@@ -37,6 +37,10 @@ YMMV, but these are the steps I use to build RPM files in a test environment whe
 
     tar -czvf /root/rpmbuild/SOURCES/freeflow-1.0.tar.gz -C /root/ C-Freeflow/ --transform s/C-Freeflow/freeflow-1.0/
     rpmbuild -ba /root/C-Freeflow/rpmbuild/freeflow.spec
+    
+License
+-------
+Apache License Version 2.0
 
 Author Information
 ------------------
