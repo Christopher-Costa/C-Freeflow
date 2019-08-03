@@ -91,7 +91,7 @@ static int set_queue_size(int queue_id, int queue_size, char* error) {
     }
 
     ds.msg_qbytes = queue_size;
-    rc =msgctl(queue_id, IPC_SET, &ds);
+    rc = msgctl(queue_id, IPC_SET, &ds);
     if (rc < 0) {
         strcpy(error, strerror(errno));
         return -2;
