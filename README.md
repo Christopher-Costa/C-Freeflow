@@ -40,7 +40,7 @@ YMMV, but these are the steps I use to build RPM files in a test environment whe
     
 License
 -------
-Apache License Version 2.0
+GNU General Public License v3.0
 
 Author Information
 ------------------
