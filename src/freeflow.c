@@ -170,6 +170,10 @@ int main(int argc, char** argv) {
         log_error(log_message, log_queue);
         return -1;
     }
+    else if (config.debug) {
+        sprintf(log_message, "Created IPC queue [%d] for logging.", log_queue);        
+        log_debug(log_message, log_queue);
+    }
 
     pid_t logger_pid;
     if ((logger_pid = fork()) == 0) {
