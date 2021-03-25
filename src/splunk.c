@@ -103,13 +103,14 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
     /* Send an empty HEC message to prevent Splunk from closing the connection
      * within 40s.  Use the opportunity to validate the authentication token.
      *
-     * Responses are received in 2 parts;  The first part is the HTML response
-     * header.  The second is JSON encoded payload from Splunk.
+     * Responses are sometimes received in 2 parts where the first part is the HTML 
+     * response header and the second is JSON encoded payload from Splunk. Sometimes
+     * the response is returned in one message.
      */
     int payload_len = empty_hec_payload(payload, session->hec);
     int bytes_written = session_write(session, payload, payload_len);
     int header_bytes_read = session_read(session, recv_buffer_header, PACKET_BUFFER_SIZE);
-    int payload_bytes_read = session_read(session, recv_buffer_payload, PACKET_BUFFER_SIZE);
+    session_read(session, recv_buffer_payload, PACKET_BUFFER_SIZE);
 
     if (payload_len != bytes_written) {
         sprintf(log_message, "Worker #%d failed to write all bytes to Splunk HEC during test."
@@ -118,7 +119,7 @@ int test_connectivity(hec_session* session, int worker_num, freeflow_config *con
         return -1;
     }
     
-    if (header_bytes_read < 0 || payload_bytes_read < 0) {
+    if (header_bytes_read < 0) {
         sprintf(log_message, 
                 "Worker #%d received error response from Splunk HEC during test (SSL mismatch?)",
                 worker_num);
